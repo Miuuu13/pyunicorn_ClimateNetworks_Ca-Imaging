@@ -26,3 +26,39 @@ net.plot()
 # Datenquelle und Dateityp: Da Ihre Daten keine NetCDF-Daten sind, können Sie die Parameter DATA_SOURCE und FILE_TYPE entfernen, da sie nur für die spezifische Dateiverarbeitung benötigt werden.
 
 # Verwendung der Daten: Sobald Ihre Daten in einem NumPy-Array vorliegen, können Sie das Netzwerk auf Basis Ihrer Daten erstellen. Dazu können Sie die Klasse TsonisClimateNetwork verwenden, jedoch ohne die Methode ClimateData.Load zu verwenden. Sie könnten stattdessen direkt mit dem data-Array arbeiten.
+from pyunicorn import climate
+
+# Assuming data is already loaded as a NumPy array with NaN values handled
+net = climate.TsonisClimateNetwork(
+    data=data, threshold=THRESHOLD, winter_only=WINTER_ONLY)
+
+# Plotting the network or any further analysis
+net.plot()
+
+# Zusammenfassung der Änderungen:
+# Daten einlesen: Ersetzen Sie den Teil mit ClimateData.Load durch das Einlesen Ihrer Daten mit NumPy oder Pandas.
+# Anpassung der Parameter:
+# WINDOW: Für neuronale Daten wahrscheinlich irrelevant, kann entfernt oder entsprechend angepasst werden.
+# TIME_CYCLE: Kann je nach Datenstruktur angepasst werden (1, wenn kein Zyklus vorhanden ist).
+# FILE_TYPE, DATA_SOURCE: Entfernen.
+# Netzwerk-Erstellung: Nutzen Sie das NumPy-Array direkt, um das Netzwerk zu erstellen.
+
+
+import numpy as np
+import pandas as pd
+from pyunicorn import climate
+
+# Daten einlesen
+data = pd.read_csv('lumineszenzdaten.csv', header=None).values  # Assuming no header
+
+# Parameter definieren
+THRESHOLD = 0.5
+LINK_DENSITY = 0.005
+WINTER_ONLY = False
+
+# Erstellen des Netzwerks
+net = climate.TsonisClimateNetwork(
+    data=data, threshold=THRESHOLD, winter_only=WINTER_ONLY)
+
+# Optional: Netzwerk ausgeben oder plotten
+print(net)
