@@ -47,8 +47,9 @@ print(f"Start Frame Sessions: \n{df_start_frame_session.head()}")
 # Number of rows: 309203
 # Number of columns: 271
 # Start Frame Sessions: 
-#      0        1        2        3         4         5         6         7  \
-# 0  1.0  22361.0  44917.0  91943.0  124994.0  158591.0  191578.0  225081.0   
+#      0        1        2        3         4         5         6         7           8         9    
+# 0  1.0  22361.0  44917.0  91943.0  124994.0  158591.0  191578.0  225081.0    243945.0  290516.0   
+
 
 #%% [2]
 """ 2. Session Key Generation
@@ -129,7 +130,17 @@ for key, df in c_raw_all_sessions.items():
 
 # Plot heatmap for the entire dataset
 plt.figure(figsize=(10, 8))
-sns.heatmap(df_c_raw_all.T, cmap='viridis', cbar=True)
+sns.heatmap(df_c_raw_all.T, cmap='viridis', cbar=True) # plasma, inferno, magma
+plt.title('Heatmap of df_c_raw_all')
+plt.show()
+
+#%%
+""" Heatmap Plotting for all neurons - tried differend color modes
+ Plot the heatmap for the entire df_c_raw_all of one id """
+
+# Plot heatmap for the entire dataset
+plt.figure(figsize=(10, 8))
+sns.heatmap(df_c_raw_all.T, cmap='magma', cbar=True) # plasma, inferno, magma
 plt.title('Heatmap of df_c_raw_all')
 plt.show()
 
@@ -142,9 +153,45 @@ for key, df in c_raw_all_sessions.items():
     plt.title(f'Heatmap of {key}')
     plt.show()
 
+#%% 
+""" Make a cs plus dict """
+""" Initialize and Calculate cs_plus values for each session """
+
+c_raw_sessions_with_cs_plus = {}
+
+# Only sessions that we are interested in (for example s4, s5, s6, s7)
+sessions_to_process = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
+
+# Loop through selected sessions and calculate cs_plus values
+for session_key in sessions_to_process:
+    session_range = session_key.split('_')[1]
+    start, end = map(int, session_range.split('-'))
+    
+    # Calculate cs_plus values
+    cs_plus_1 = start + 5400
+    cs_plus_2 = cs_plus_1 + 900 + 1800
+    cs_plus_3 = cs_plus_1 + 2 * (900 + 1800)
+    cs_plus_4 = cs_plus_1 + 3 * (900 + 1800)
+    
+    # Store the values in the dictionary
+    c_raw_sessions_with_cs_plus[session_key] = {
+        'start': start,
+        'end': end,
+        'cs_plus_1': cs_plus_1,
+        'cs_plus_2': cs_plus_2,
+        'cs_plus_3': cs_plus_3,
+        'cs_plus_4': cs_plus_4,
+        'data': c_raw_all_sessions[session_key]
+    }
+
+# Output to verify
+for session, values in c_raw_sessions_with_cs_plus.items():
+    print(f"{session}: {values}")
 #%% [5]
 
 """ Heatmap Plotting for cs_plus Events
+
+take Generated_sessions_to_process and make dict, containing frames for cs_plus
 
 HEATMAPS of frames before and after tone is played
 # s4_91943-124993: (33051, 271) - ex day 1
@@ -161,326 +208,649 @@ In total 1620 s (32.400 frames for 20 fps)
 
 for ex4: 91943f + 600f until next 1000f
 
-​
-  """
-import seaborn as sns
-import matplotlib.pyplot as plt
+​"""
 
-# Define the sessions to process (s4, s5, s6, s7)
-sessions_to_plot = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
 
-# Loop through the selected sessions
-for session_key in sessions_to_plot:
-    # Access the DataFrame and cs_plus values from the original dictionary
-    session_info = c_raw_sessions_with_cs_plus[session_key]
-    session_df = session_info['data']
+
+
+#%% [5]
+""" Plot heatmaps around each cs_plus tone for one session using C_Raw_all data """
+
+# Define the session to process (e.g., s4_91943-124993)
+session_key = 's4_91943-124993'  # You can change this to s5, s6, s7, etc.
+cs_plus_keys = ['cs_plus_1', 'cs_plus_2', 'cs_plus_3', 'cs_plus_4']
+
+# Get the range of start and end frames for the session from df_c_raw_all
+# df_c_raw_all contains the actual data (time = rows, neurons = columns)
+session_start, session_end = map(int, session_key.split('_')[1].split('-'))
+
+# Loop through each cs_plus value to plot the heatmaps
+for cs_plus_key in cs_plus_keys:
+    cs_plus_value = c_raw_sessions_with_cs_plus[session_key][cs_plus_key]
     
-    # Extract cs_plus values and use them to slice the DataFrame
-    cs_plus_1 = session_info['cs_plus_1']
-    cs_plus_22 = session_info['cs_plus_22']
-    cs_plus_3 = session_info['cs_plus_3']
-    cs_plus_4 = session_info['cs_plus_4']
+    # Define the start and end window for this cs_plus (500 frames before, 600 frames after)
+    start_idx = max(cs_plus_value - 500, 0)  # Ensure start is not less than 0
+    end_idx = min(cs_plus_value + 600, df_c_raw_all.shape[0] - 1)  # Ensure end is within data range
     
-    # Extract frames from 100 before cs_plus_1 to cs_plus_22
-    data_cs_plus_1 = session_df.iloc[cs_plus_1-100:cs_plus_22]
+    # Extract the data for this window from df_c_raw_all
+    partial_data = df_c_raw_all.iloc[start_idx:end_idx + 1, :]  # Rows (frames) and all columns (neurons)
     
-    # Extract frames from 100 before cs_plus_22 to cs_plus_3
-    data_cs_plus_22 = session_df.iloc[cs_plus_22-100:cs_plus_3]
+    # Check if the partial data is non-empty
+    if partial_data.empty:
+        print(f"Warning: Empty data for {session_key} {cs_plus_key} (start: {start_idx}, end: {end_idx})")
+        continue  # Skip this plot if there's no data
+
+    # Plot the heatmap for the current cs_plus event
+    plt.figure(figsize=(10, 8))
     
-    # Extract frames from 100 before cs_plus_3 to cs_plus_4
-    data_cs_plus_3 = session_df.iloc[cs_plus_3-100:cs_plus_4]
+    # Plot the heatmap with both x (frames) and y (neurons) axis labels enabled
+    sns.heatmap(partial_data.T, cmap='viridis', cbar=True, xticklabels=10, yticklabels=10)
     
-    # Extract frames from 100 before cs_plus_4 to the end of the session
-    data_cs_plus_4 = session_df.iloc[cs_plus_4-100:]
+    # Set the tick labels for frames and neurons
+    plt.xticks(ticks=np.arange(0, partial_data.shape[0], step=100), labels=np.arange(start_idx, end_idx + 1, step=100))
+    plt.yticks(ticks=np.arange(0, partial_data.shape[1], step=10), labels=np.arange(0, partial_data.shape[1], step=10))
     
-    # Concatenate all data for the heatmap
-    combined_data = pd.concat([data_cs_plus_1, data_cs_plus_22, data_cs_plus_3, data_cs_plus_4])
-    
-    # Plot the heatmap
-    plt.figure(figsize=(10, 6))
-    sns.heatmap(combined_data, cmap="viridis")
-    plt.title(f"Heatmap for {session_key}")
-    plt.xlabel("Neurons")
-    plt.ylabel("Frames")
+    plt.title(f"Heatmap for {session_key} {cs_plus_key}: {start_idx}-{end_idx}")
+    plt.xlabel('Frames (time)')
+    plt.ylabel('Neurons')
     plt.show()
 
 
-# Initialize a dictionary to store the new sessions with calculated values
-c_raw_sessions_with_cs_plus = {}
+#%% [5]
+""" Plot heatmaps around each cs_plus tone for s4, s5, s6, s7 """
 
-# List of the specific sessions to process
+""" Plot heatmaps around each cs_plus tone for all sessions using C_Raw_all data """
+
+# Define the sessions to process
 sessions_to_process = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
+cs_plus_keys = ['cs_plus_1', 'cs_plus_2', 'cs_plus_3', 'cs_plus_4']
 
-# Loop through the selected sessions
+# Loop through each session in sessions_to_process
 for session_key in sessions_to_process:
-    # Parse the start and end from the session key
-    session_range = session_key.split('_')[1]
-    start, end = map(int, session_range.split('-'))
+    print(f"Processing {session_key}")
     
-    # Calculate cs_plus values based on the given rules
-    cs_plus_1 = start + 5400
-    cs_plus_22 = cs_plus_1 + 900 + 1800
-    cs_plus_3 = cs_plus_1 + 2 * (900 + 1800)
-    cs_plus_4 = cs_plus_1 + 3 * (900 + 1800)
+    # Get the session data from df_c_raw_all
+    session_start, session_end = map(int, session_key.split('_')[1].split('-'))
+
+    # Loop through each cs_plus value to plot the heatmaps
+    for cs_plus_key in cs_plus_keys:
+        cs_plus_value = c_raw_sessions_with_cs_plus[session_key][cs_plus_key]
+
+        # Define the start and end window for this cs_plus (500 frames before, 600 frames after)
+        start_idx = max(cs_plus_value - 500, 0)  # Ensure start is not less than 0
+        end_idx = min(cs_plus_value + 600, df_c_raw_all.shape[0] - 1)  # Ensure end is within data range
+
+        # Extract the data for this window from df_c_raw_all
+        partial_data = df_c_raw_all.iloc[start_idx:end_idx + 1, :]  # Rows (frames) and all columns (neurons)
+
+        # Check if the partial data is non-empty
+        if partial_data.empty:
+            print(f"Warning: Empty data for {session_key} {cs_plus_key} (start: {start_idx}, end: {end_idx})")
+            continue  # Skip this plot if there's no data
+
+        # Plot the heatmap for the current cs_plus event
+        plt.figure(figsize=(10, 8))
+
+        # Plot the heatmap with both x (frames) and y (neurons) axis labels enabled
+        sns.heatmap(partial_data.T, cmap='viridis', cbar=True, xticklabels=10, yticklabels=10)
+
+        # Set the tick labels for frames and neurons
+        plt.xticks(ticks=np.arange(0, partial_data.shape[0], step=100), labels=np.arange(start_idx, end_idx + 1, step=100))
+        plt.yticks(ticks=np.arange(0, partial_data.shape[1], step=10), labels=np.arange(0, partial_data.shape[1], step=10))
+
+        plt.title(f"Heatmap for {session_key} {cs_plus_key}: {start_idx}-{end_idx}")
+        plt.xlabel('Frames (time)')
+        plt.ylabel('Neurons')
+        plt.show()
+
+
+
+  #%%
+
+
+#%% [5]
+""" Plot heatmaps around each cs_plus tone for all sessions using C_Raw_all data 
+    and add a red bar at the cs_plus frame """
+
+# Define the sessions to process
+sessions_to_process = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
+cs_plus_keys = ['cs_plus_1', 'cs_plus_2', 'cs_plus_3', 'cs_plus_4']
+
+# Loop through each session in sessions_to_process
+for session_key in sessions_to_process:
+    print(f"Processing {session_key}")
     
-    # Store the values in the dictionary for this session
-    c_raw_sessions_with_cs_plus[session_key] = {
-        'start': start,
-        'end': end,
-        'cs_plus_1': cs_plus_1,
-        'cs_plus_22': cs_plus_22,
-        'cs_plus_3': cs_plus_3,
-        'cs_plus_4': cs_plus_4
-    }
+    # Get the session data from df_c_raw_all
+    session_start, session_end = map(int, session_key.split('_')[1].split('-'))
 
-# Output the dictionary to verify the result
-for session, values in c_raw_sessions_with_cs_plus.items():
-    print(f"{session}: {values}")
+    # Loop through each cs_plus value to plot the heatmaps
+    for cs_plus_key in cs_plus_keys:
+        cs_plus_value = c_raw_sessions_with_cs_plus[session_key][cs_plus_key]
+
+        # Define the start and end window for this cs_plus (500 frames before, 600 frames after)
+        start_idx = max(cs_plus_value - 500, 0)  # Ensure start is not less than 0
+        end_idx = min(cs_plus_value + 600, df_c_raw_all.shape[0] - 1)  # Ensure end is within data range
+
+        # Extract the data for this window from df_c_raw_all
+        partial_data = df_c_raw_all.iloc[start_idx:end_idx + 1, :]  # Rows (frames) and all columns (neurons)
+
+        # Check if the partial data is non-empty
+        if partial_data.empty:
+            print(f"Warning: Empty data for {session_key} {cs_plus_key} (start: {start_idx}, end: {end_idx})")
+            continue  # Skip this plot if there's no data
+
+        # Plot the heatmap for the current cs_plus event
+        plt.figure(figsize=(10, 8))
+
+        # Plot the heatmap with both x (frames) and y (neurons) axis labels enabled
+        sns.heatmap(partial_data.T, cmap='viridis', cbar=True, xticklabels=10, yticklabels=10)
+
+        # Add a red vertical line where the cs_plus event occurs
+        cs_plus_relative = cs_plus_value - start_idx  # Calculate the relative position of cs_plus in the window
+        plt.axvline(x=cs_plus_relative, color='red', linestyle='--', linewidth=2)  # Add a red vertical line at cs_plus
+
+        # Set the tick labels for frames and neurons
+        plt.xticks(ticks=np.arange(0, partial_data.shape[0], step=100), labels=np.arange(start_idx, end_idx + 1, step=100))
+        plt.yticks(ticks=np.arange(0, partial_data.shape[1], step=10), labels=np.arange(0, partial_data.shape[1], step=10))
+
+        plt.title(f"Heatmap for {session_key} {cs_plus_key}: {start_idx}-{end_idx}")
+        plt.xlabel('Frames (time)')
+        plt.ylabel('Neurons')
+        plt.show()
 
 
+#%% [5]
+""" Plot subplots for the same cs_plus event across all sessions with red bars and showing every 10th frame number """
 
+# Define the sessions to process
+sessions_to_process = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
+cs_plus_keys = ['cs_plus_1', 'cs_plus_2', 'cs_plus_3', 'cs_plus_4']
 
+# Loop through each cs_plus event
+#%% [5]
+#%% [5]
+""" Plot subplots for the same cs_plus event across all sessions with red bars and less dense x-axis labels, vertically stacked """
 
+# Define the sessions to process
+sessions_to_process = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
+cs_plus_keys = ['cs_plus_1', 'cs_plus_2', 'cs_plus_3', 'cs_plus_4']
 
-
-#################change this according to the meeting with Janina:###########
-
-
-
-
-
-""" plot head of sessions"""
-
-# Set the number of rows to plot from the head of each session
-num_rows_to_plot = 5
-
-# Loop through each session window and plot the first few rows
-for key, df in c_raw_all_sessions.items():
-    # Get the first 'num_rows_to_plot' rows of the session
-    df_head = df.head(num_rows_to_plot)
+# Loop through each cs_plus event
+for cs_plus_key in cs_plus_keys:
     
-    # Plot the heatmap of the head of each session
-    plt.figure(figsize=(10, 6))
-    sns.heatmap(df_head.T, cmap='viridis', cbar=True)
-    plt.title(f'Heatmap of Head (First {num_rows_to_plot} Rows) of {key}')
+    # Create a figure with subplots (4 rows, 1 column) for each session's cs_plus heatmap
+    fig, axes = plt.subplots(4, 1, figsize=(20, 24))  # 4 rows, 1 column for 4 sessions (increase width for a longer x-axis)
+
+    # Loop through each session in sessions_to_process
+    for idx, session_key in enumerate(sessions_to_process):
+        print(f"Processing {session_key} for {cs_plus_key}")
+        
+        # Get the session data from df_c_raw_all
+        session_start, session_end = map(int, session_key.split('_')[1].split('-'))
+
+        # Get the cs_plus value for the current session
+        cs_plus_value = c_raw_sessions_with_cs_plus[session_key][cs_plus_key]
+
+        # Define the start and end window for this cs_plus (500 frames before, 600 frames after)
+        start_idx = max(cs_plus_value - 500, 0)  # Ensure start is not less than 0
+        end_idx = min(cs_plus_value + 600, df_c_raw_all.shape[0] - 1)  # Ensure end is within data range
+
+        # Extract the data for this window from df_c_raw_all
+        partial_data = df_c_raw_all.iloc[start_idx:end_idx + 1, :]  # Rows (frames) and all columns (neurons)
+
+        # Check if the partial data is non-empty
+        if partial_data.empty:
+            print(f"Warning: Empty data for {session_key} {cs_plus_key} (start: {start_idx}, end: {end_idx})")
+            continue  # Skip this plot if there's no data
+
+        # Plot the heatmap for the current session's cs_plus event in the corresponding subplot
+        ax = axes[idx]  # Select the subplot for the current session
+        sns.heatmap(partial_data.T, cmap='viridis', cbar=True, ax=ax, xticklabels=10, yticklabels=10)
+
+        # Add a red vertical line where the cs_plus event occurs
+        cs_plus_relative = cs_plus_value - start_idx  # Calculate the relative position of cs_plus in the window
+        ax.axvline(x=cs_plus_relative, color='red', linestyle='--', linewidth=2)  # Add red vertical line at cs_plus
+
+        # Set the tick labels for frames (displaying every 50th frame for less clutter)
+        xticks = np.arange(0, partial_data.shape[0], step=50)  # Every 50th frame
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(np.arange(start_idx, end_idx + 1, step=50))  # Set labels for every 50th frame
+
+        # Set the title and labels for the subplot
+        ax.set_title(f"{session_key} {cs_plus_key}")
+        ax.set_xlabel('Frames (time)')
+        ax.set_ylabel('Neurons')
+
+    # Adjust layout and show the plot for this cs_plus event across all sessions
+    plt.tight_layout()
     plt.show()
-# %% [6]
 
-""" Count neurons 
-Before starting NW analysis"""
-# Function to count the number of NaN and non-NaN values in a session
-def count_nan_non_nan(session_df):
-    # Count the total number of NaN values
-    nan_count = session_df.isna().sum().sum()
-    
-    # Count the total number of non-NaN values
-    non_nan_count = session_df.notna().sum().sum()
-    
-    # Print the counts
-    print(f"Number of NaN values: {nan_count}")
-    print(f"Number of non-NaN values: {non_nan_count}")
-    
-    return nan_count, non_nan_count
-
-# Function to find values greater than 80% of the maximum value in the session
-def filter_by_threshold(session_df):
-    # Find the maximum value in the session
-    max_value = session_df.max().max()
-    
-    # Define the threshold as 80% of the max value (max - 20%)
-    threshold = max_value * 0.8
-    
-    # Filter the DataFrame to get the values greater than the threshold
-    above_threshold_df = session_df[session_df > threshold]
-    
-    # Count the number of values above the threshold
-    count_above_threshold = above_threshold_df.notna().sum().sum()
-    
-    # Print the threshold and count of values above the threshold
-    print(f"Threshold (80% of max value {max_value}): {threshold}")
-    print(f"Number of values above threshold: {count_above_threshold}")
-    
-    return count_above_threshold
-
-# Example usage with a session from c_raw_all_sessions:
-# Let's assume you want to check 's1_0-22485' from c_raw_all_sessions
-session_key = 's1_0-22485'  # Replace with the session key you want to test
-session_df = c_raw_all_sessions[session_key]
-
-# Call the functions
-nan_count, non_nan_count = count_nan_non_nan(session_df)
-count_above_threshold = filter_by_threshold(session_df)
 
 #%%
 
-# import pandas as pd
+""" subplots without nans"""
+
+#%% [5]
+""" Plot subplots for the same cs_plus event across all sessions with red bars, less dense x-axis labels, and removing NaN rows """
+
+# Define the sessions to process
+sessions_to_process = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
+cs_plus_keys = ['cs_plus_1', 'cs_plus_2', 'cs_plus_3', 'cs_plus_4']
+
+
+# Loop through each cs_plus event
+for cs_plus_key in cs_plus_keys:
+    
+    # Create a figure with subplots (4 rows, 1 column) for each session's cs_plus heatmap
+    fig, axes = plt.subplots(4, 1, figsize=(20, 24))  # 4 rows, 1 column for 4 sessions (increase width for a longer x-axis)
+
+    # Loop through each session in sessions_to_process
+    for idx, session_key in enumerate(sessions_to_process):
+        print(f"Processing {session_key} for {cs_plus_key}")
+        
+        # Get the session data from df_c_raw_all
+        session_start, session_end = map(int, session_key.split('_')[1].split('-'))
+
+        # Get the cs_plus value for the current session
+        cs_plus_value = c_raw_sessions_with_cs_plus[session_key][cs_plus_key]
+
+        # Define the start and end window for this cs_plus (500 frames before, 600 frames after)
+        start_idx = max(cs_plus_value - 500, 0)  # Ensure start is not less than 0
+        end_idx = min(cs_plus_value + 600, df_c_raw_all.shape[0] - 1)  # Ensure end is within data range
+
+        # Extract the data for this window from df_c_raw_all
+        partial_data = df_c_raw_all.iloc[start_idx:end_idx + 1, :]  # Rows (frames) and all columns (neurons)
+
+        # Convert invalid values to NaN (in case they're not properly recognized as NaN)
+        partial_data = partial_data.apply(pd.to_numeric, errors='coerce')
+
+        # Remove rows where all values (neuron activity) are NaN
+        partial_data_clean = partial_data.dropna(how='all')
+
+        # Check if the cleaned partial data is non-empty
+        if partial_data_clean.empty:
+            print(f"Warning: Empty data for {session_key} {cs_plus_key} after removing NaNs (start: {start_idx}, end: {end_idx})")
+            continue  # Skip this plot if there's no data
+
+        # Plot the heatmap for the current session's cs_plus event in the corresponding subplot
+        ax = axes[idx]  # Select the subplot for the current session
+        sns.heatmap(partial_data_clean.T, cmap='viridis', cbar=True, ax=ax, xticklabels=10, yticklabels=10)
+
+        # Add a red vertical line where the cs_plus event occurs (adjust for any dropped rows)
+        cs_plus_relative = cs_plus_value - start_idx - (partial_data.shape[0] - partial_data_clean.shape[0])  # Adjust cs_plus position
+        ax.axvline(x=cs_plus_relative, color='red', linestyle='--', linewidth=2)  # Add red vertical line at cs_plus
+
+        # Set the tick labels for frames (displaying every 50th frame for less clutter)
+        xticks = np.arange(0, partial_data_clean.shape[0], step=50)  # Every 50th frame
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(np.arange(start_idx, start_idx + partial_data_clean.shape[0], step=50))  # Set labels for every 50th frame
+
+        # Set the title and labels for the subplot
+        ax.set_title(f"{session_key} {cs_plus_key}")
+        ax.set_xlabel('Frames (time)')
+        ax.set_ylabel('Neurons')
+
+    # Adjust layout and show the plot for this cs_plus event across all sessions
+    plt.tight_layout()
+    plt.show()
+
+
+
+###########
+#%%
+# Define the sessions to process
+sessions_to_process = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
+cs_plus_keys = ['cs_plus_1', 'cs_plus_2', 'cs_plus_3', 'cs_plus_4']
+
+# Loop through each cs_plus event
+for cs_plus_key in cs_plus_keys:
+    
+    # Create a figure with subplots (1 row, 4 columns) for each session's cs_plus heatmap
+    fig, axes = plt.subplots(1, 4, figsize=(24, 6))  # 1 row, 4 columns for 4 sessions
+
+    # Loop through each session in sessions_to_process
+    for idx, session_key in enumerate(sessions_to_process):
+        print(f"Processing {session_key} for {cs_plus_key}")
+        
+        # Get the session data from df_c_raw_all
+        session_start, session_end = map(int, session_key.split('_')[1].split('-'))
+
+        # Get the cs_plus value for the current session
+        cs_plus_value = c_raw_sessions_with_cs_plus[session_key][cs_plus_key]
+
+        # Define the start and end window for this cs_plus (500 frames before, 600 frames after)
+        start_idx = max(cs_plus_value - 500, 0)  # Ensure start is not less than 0
+        end_idx = min(cs_plus_value + 600, df_c_raw_all.shape[0] - 1)  # Ensure end is within data range
+
+        # Extract the data for this window from df_c_raw_all
+
+        """ dropping nans not working """
+        partial_data = df_c_raw_all.iloc[start_idx:end_idx + 1, :]  # Rows (frames) and all columns (neurons)
+
+        # Check if the partial data is non-empty
+        if partial_data.empty:
+            print(f"Warning: Empty data for {session_key} {cs_plus_key} (start: {start_idx}, end: {end_idx})")
+            continue  # Skip this plot if there's no data
+
+        # Plot the heatmap for the current session's -> cs_plus  in the corresponding subplot
+        ax = axes[idx]  # Select the subplot for the current session
+        sns.heatmap(partial_data.T, cmap='inferno', cbar=True, ax=ax, xticklabels=10, yticklabels=10)
+
+        # Add red vertical line where the cs_plus tone occurs
+        cs_plus_relative = cs_plus_value - start_idx  # Calculate the relative position of cs_plus in the window
+        ax.axvline(x=cs_plus_relative, color='red', linestyle='--', linewidth=2)  # Add red vertical line at cs_plus
+
+        # Set the title and labels for the subplot
+        ax.set_title(f"{session_key} {cs_plus_key}")
+        ax.set_xlabel('Frames (time)')
+        ax.set_ylabel('Neurons')
+
+    # Adjust layout and show the plot for this cs_plus event across all sessions
+    plt.tight_layout()
+    plt.show()
+
+############## END OF HEATMAP PLOTS ####################
+
+#%%
+
+""" COUNT NEURONS"""
+
+# 1. Split the data into sessions and count NaNs and non-NaNs
+
+# Generate sessions to process based on start_frame_session
+sessions_to_process = []
+for i in range(1, len(df_start_frame_session.columns)):  # Start from session 1
+    start = int(df_start_frame_session.iloc[0, i-1])
+    end = int(df_start_frame_session.iloc[0, i]) - 1
+    session_key = f"s{i}_{start}-{end}"
+    sessions_to_process.append((session_key, start, end))
+
+# Add the final session (it goes until the last row of df_c_raw_all)
+final_start = int(df_start_frame_session.iloc[0, -1])
+final_end = len(df_c_raw_all) - 1
+final_session_key = f"s{len(df_start_frame_session.columns)}_{final_start}-{final_end}"
+sessions_to_process.append((final_session_key, final_start, final_end))
+
+# Function to count NaN and non-NaN values in each session
+def count_nan_non_nan(session_data):
+    nan_count = session_data.isna().sum().sum()  # Total NaN values in the session
+    non_nan_count = session_data.notna().sum().sum()  # Total non-NaN values in the session
+    return nan_count, non_nan_count
+
+# Loop through each session and count NaN and non-NaN values
+for session_key, start, end in sessions_to_process:
+    session_data = df_c_raw_all.iloc[start:end + 1, :]  # Extract session data based on frames
+    nan_count, non_nan_count = count_nan_non_nan(session_data)
+    
+    # Print the results for each session
+    print(f"Session {session_key}:")
+    print(f"NaN count: {nan_count}, Non-NaN count: {non_nan_count}")
+    print('-' * 50)
+
+# 2. Calculate max, mean, std for each neuron and save to CSV
+
+# Calculate statistics for each neuron (column)
+neuron_stats_df = pd.DataFrame({
+    'max': df_c_raw_all.max(),
+    'mean': df_c_raw_all.mean(),
+    'std': df_c_raw_all.std()
+})
+
+# Calculate the threshold as 80% of the max value for each neuron
+neuron_stats_df['threshold'] = neuron_stats_df['max'] * 0.8
+
+# Save the results to a CSV file
+neuron_stats_df.to_csv('neuron_statistics.csv', index_label='Neuron')
+
+# Output the first few rows of the statistics DataFrame to verify
+print(neuron_stats_df.head())
+
+#          max      mean       std  threshold
+# 0  30.431952  0.994543  2.575916  24.345562
+# 1  30.265529  0.860786  2.565490  24.212423
+# 2  33.518725  0.662329  2.173652  26.814980
+# 3  20.315921  0.856329  1.939148  16.252737
+# 4  11.285561  0.173334  0.808306   9.028449
 
 # # Function to count the number of NaN and non-NaN values in a session
+# """ Count neurons 
+# Before starting NW analysis"""
+# # Function to count the number of NaN and non-NaN values for each neuron (column)
 # def count_nan_non_nan(session_df):
-#     # Count the total number of NaN values
-#     nan_count = session_df.isna().sum().sum()
+#     # Count the total number of NaN values per neuron (column-wise)
+#     nan_count = session_df.isna().sum().sum()  # Total NaNs in the session
     
-#     # Count the total number of non-NaN values
-#     non_nan_count = session_df.notna().sum().sum()
+#     # Count the total number of non-NaN values per neuron
+#     non_nan_count = session_df.notna().sum().sum()  # Total non-NaNs in the session
+    
+#     print(f"Number of NaN values: {nan_count}")
+#     print(f"Number of non-NaN values: {non_nan_count}")
     
 #     return nan_count, non_nan_count
 
-# # Function to find values greater than 80% of the maximum value in the session
-# def filter_by_threshold(session_df):
-#     # Find the maximum value in the session
-#     max_value = session_df.max().max()
+# # Function to check if a neuron crosses the threshold for at least 10 consecutive frames, at least 30 times
+# def check_threshold_crossings(session_df):
+#     neuron_count = 0  # Count of neurons that meet the criteria
     
-#     # Define the threshold as 80% of the max value (max - 20%)
-#     threshold = max_value * 0.8
-    
-#     # Filter the DataFrame to get the values greater than the threshold
-#     above_threshold_df = session_df[session_df > threshold]
-    
-#     # Count the number of values above the threshold
-#     count_above_threshold = above_threshold_df.notna().sum().sum()
-    
-#     return count_above_threshold, threshold
+#     # Loop through each neuron (column-wise) and calculate the threshold based on activity across frames (rows)
+#     for neuron in session_df.columns:
+#         # Calculate the threshold for the neuron (80% of the max value across all frames)
+#         neuron_activity = session_df[neuron]
+#         max_value = neuron_activity.max()
+#         threshold = max_value * 0.8
 
-# # Initialize a list to store the result for each session
-# results = []
+#         # Identify where the threshold is crossed (True where crossed)
+#         crossing_mask = neuron_activity > threshold
 
-# # Loop through all sessions in the dictionary
+#         # Count consecutive crossings using a rolling window of 10 frames
+#         consecutive_crossings = crossing_mask.rolling(window=10).sum() == 10  # Rolling sum = 10 means 10 consecutive frames
+#         count_crossings = consecutive_crossings.sum()  # Count how many times the neuron crosses for at least 10 frames
+
+#         # If threshold is crossed at least 30 times, count this neuron
+#         if count_crossings >= 30:
+#             neuron_count += 1
+
+#     return neuron_count
+
+# # Main Loop Through All Sessions
 # for session_key, session_df in c_raw_all_sessions.items():
-#     # Get NaN and non-NaN counts
+#     print(f"Processing session: {session_key}")
+    
+#     # Call the functions to count NaN and non-NaN values
 #     nan_count, non_nan_count = count_nan_non_nan(session_df)
-    
-#     # Get count of values above the threshold and the threshold value
-#     count_above_threshold, threshold = filter_by_threshold(session_df)
-    
-#     # Append the results as a row
-#     results.append({
-#         "Session": session_key,
-#         "NaN Count": nan_count,
-#         "Non-NaN Count": non_nan_count,
-#         "Threshold (Max - 20%)": threshold,
-#         "Count Above Threshold": count_above_threshold
-#     })
 
-# # Convert the results into a pandas DataFrame
-# results_df = pd.DataFrame(results)
-
-# # Display the DataFrame using pandas
-# print(results_df)
-
-# # Optionally, save to a CSV file if needed
-# results_df.to_csv('session_data_summary.csv', index=False)
-
-# # Optionally, save to an Excel file if needed
-# # results_df.to_excel('session_data_summary.xlsx', index=False)
-
-# %%
-""" Count active neurons (not-NaN) and above Threshold (max-20%)"""
-
-# Function to count the number of NaN and non-NaN values in a session
-def count_nan_non_nan(session_df):
-    # Count the total number of NaN values
-    nan_count = session_df.isna().sum().sum()
+#     # Check how many neurons cross the threshold at least 30 times for 10 consecutive frames
+#     neurons_meeting_criteria = check_threshold_crossings(session_df)
     
-    # Count the total number of non-NaN values
-    non_nan_count = session_df.notna().sum().sum()
-    
-    return nan_count, non_nan_count
+#     # Print results for the session
+#     print(f"Session {session_key}:")
+#     print(f"NaN count: {nan_count}, Non-NaN count: {non_nan_count}")
+#     print(f"Neurons where threshold was crossed at least 30 times for 10 consecutive frames: {neurons_meeting_criteria}")
+#     print('-' * 50)
 
-# Function to find values greater than 80% of the maximum value in the session
-def filter_by_threshold(session_df):
-    # Find the maximum value in the session
-    max_value = session_df.max().max()
-    
-    # Define the threshold as 80% of the max value (max - 20%)
-    threshold = max_value * 0.8
-    
-    # Filter the DataFrame to get the values greater than the threshold
-    above_threshold_df = session_df[session_df > threshold]
-    
-    # Count the number of values above the threshold
-    count_above_threshold = above_threshold_df.notna().sum().sum()
-    
-    return count_above_threshold, threshold
+#%%
+"""the max, mean, std for eaach session for all neurons"""
 
-# Initialize a list to store the result for each session
-results = []
 
-# Loop through all sessions in the dictionary
-for session_key, session_df in c_raw_all_sessions.items():
-    # Get NaN and non-NaN counts
-    nan_count, non_nan_count = count_nan_non_nan(session_df)
+# 1. Generate sessions to process based on start_frame_session
+sessions_to_process = []
+for i in range(1, len(df_start_frame_session.columns)):  # Start from session 1
+    start = int(df_start_frame_session.iloc[0, i-1])
+    end = int(df_start_frame_session.iloc[0, i]) - 1
+    session_key = f"s{i}_{start}-{end}"
+    sessions_to_process.append((session_key, start, end))
+
+# Add the final session (it goes until the last row of df_c_raw_all)
+final_start = int(df_start_frame_session.iloc[0, -1])
+final_end = len(df_c_raw_all) - 1
+final_session_key = f"s{len(df_start_frame_session.columns)}_{final_start}-{final_end}"
+sessions_to_process.append((final_session_key, final_start, final_end))
+
+# 2. Calculate max, mean, std for each neuron in each session and store results
+
+# DataFrame to store session-based statistics (max, mean, std for all neurons)
+session_stats_df = pd.DataFrame()
+
+# Loop through each session to process
+for session_key, start, end in sessions_to_process:
+    session_data = df_c_raw_all.iloc[start:end + 1, :]  # Extract session data based on frames
     
-    # Get count of values above the threshold and the threshold value
-    count_above_threshold, threshold = filter_by_threshold(session_df)
+    # Calculate the max, mean, std for each neuron (column) in this session
+    session_max = session_data.max()
+    session_mean = session_data.mean()
+    session_std = session_data.std()
     
-    # Append the results as a row
-    results.append({
-        "Session": session_key,
-        "NaN Count": nan_count,
-        "Non-NaN Count": non_nan_count,
-        "Threshold (Max - 20%)": threshold,
-        "Count Above Threshold": count_above_threshold
+    # Create a DataFrame to store this session's statistics
+    session_df = pd.DataFrame({
+        'max': session_max,
+        'mean': session_mean,
+        'std': session_std
     })
+    
+    # Add the session key as a prefix to the column names
+    session_df.columns = [f"{session_key}_{col}" for col in session_df.columns]
+    
+    # Concatenate the session's statistics to the overall DataFrame
+    session_stats_df = pd.concat([session_stats_df, session_df], axis=1)
 
-# Convert the results into a pandas DataFrame
-results_df = pd.DataFrame(results)
+# 3. Save the results to a CSV file
+session_stats_df.to_csv('session_neuron_statistics.csv', index_label='Neuron')
 
-# Display the DataFrame using pandas
-print(results_df)
+# Output the first few rows of the statistics DataFrame to verify
+print(session_stats_df.head())
 
-# Optionally, save to a CSV file if needed
-results_df.to_csv('session_data_summary.csv', index=False)
+#%%
+""" Add NaN, non-NaN info"""
 
-# Optionally, save to an Excel file if needed
-# results_df.to_excel('session_data_summary.xlsx', index=False)
 
-# %%
-# import numpy as np
-# import networkx as nx
-# import matplotlib.pyplot as plt
+# DataFrame to store session-based statistics (max, mean, std for all neurons)
+session_stats_df = pd.DataFrame()
 
-# # Function to perform network analysis and plot the network for a given session
-# def network_analysis(session_df, correlation_threshold=0.5):
-#     # Compute the Pearson correlation between all columns (neurons)
-#     correlation_matrix = session_df.corr()
+# DataFrame to store NaN and active neuron information
+neuron_activity_stats = pd.DataFrame(columns=['session_key', 'neurons_all_nan', 'neurons_active'])
 
-#     # Create a NetworkX graph
-#     G = nx.Graph()
+# Loop through each session to process
+for session_key, start, end in sessions_to_process:
+    session_data = df_c_raw_all.iloc[start:end + 1, :]  # Extract session data based on frames
+    
+    # Calculate the max, mean, std for each neuron (column) in this session
+    session_max = session_data.max()
+    session_mean = session_data.mean()
+    session_std = session_data.std()
 
-#     # Add nodes (one for each neuron, represented by a column in the DataFrame)
-#     for col in session_df.columns:
-#         G.add_node(col)
+    # Count how many neurons have all NaN values
+    neurons_all_nan = session_data.isna().all(axis=0).sum()
+    
+    # Count how many neurons are active at least once (have at least one non-NaN value)
+    neurons_active = session_data.notna().any(axis=0).sum()
 
-#     # Add edges based on the correlation matrix
-#     for i in range(len(correlation_matrix.columns)):
-#         for j in range(i + 1, len(correlation_matrix.columns)):
-#             correlation = correlation_matrix.iloc[i, j]
-#             if np.abs(correlation) > correlation_threshold:  # Use the absolute value to consider both positive and negative correlations
-#                 # Add an edge between the two neurons if the correlation is above the threshold
-#                 G.add_edge(correlation_matrix.columns[i], correlation_matrix.columns[j], weight=correlation)
+    # Store the neuron activity stats for this session
+    new_row = pd.DataFrame({
+        'session_key': [session_key],
+        'neurons_all_nan': [neurons_all_nan],
+        'neurons_active': [neurons_active]
+    })
+    
+    # Concatenate the new row to the neuron_activity_stats DataFrame
+    neuron_activity_stats = pd.concat([neuron_activity_stats, new_row], ignore_index=True)
+    
+    # Create a DataFrame to store this session's statistics
+    session_df = pd.DataFrame({
+        'max': session_max,
+        'mean': session_mean,
+        'std': session_std
+    })
+    
+    # Add the session key as a prefix to the column names
+    session_df.columns = [f"{session_key}_{col}" for col in session_df.columns]
+    
+    # Concatenate the session's statistics to the overall DataFrame
+    session_stats_df = pd.concat([session_stats_df, session_df], axis=1)
 
-#     # Plot the network
-#     plt.figure(figsize=(10, 8))
-#     pos = nx.spring_layout(G)  # Layout for positioning the nodes
-#     nx.draw(G, pos, with_labels=True, node_color='lightblue', edge_color='gray', node_size=500, font_size=10)
+# 3. Save the results to a CSV file
+session_stats_df.to_csv('session_neuron_statistics.csv', index_label='Neuron')
 
-#     # Draw edges with varying thickness based on weight (correlation strength)
-#     edges = G.edges(data=True)
-#     nx.draw_networkx_edges(G, pos, edgelist=edges, width=[d['weight'] * 2 for (u, v, d) in edges])
+# Save the neuron activity stats to a CSV file
+neuron_activity_stats.to_csv('neuron_activity_statistics.csv', index=False)
 
-#     plt.title("Neural Network based on Correlation")
-#     plt.show()
+# Output the first few rows of the statistics DataFrame to verify
+print("Session Neuron Statistics")
+print(session_stats_df.head())
 
-#     return G  # Return the graph object for further analysis if needed
+# Output the neuron activity statistics DataFrame
+print("\nNeuron Activity Statistics")
+print(neuron_activity_stats)
 
-# # %%
-# # Loop through all sessions in the dictionary and apply network analysis
-# for session_key, session_df in c_raw_all_sessions.items():
-#     print(f"Performing network analysis for {session_key}...")
-#     G = network_analysis(session_df)
 
-# %%
+#%%
+""" Plot top active neurons around cs_plus"""
 
+"""discard for now"""
+# # Sessions we are interested in
+# sessions_to_process = ['s4_91943-124993', 's5_124994-158590', 's6_158591-191577', 's7_191578-225080']
+
+# # Define the number of frames before and after the cs_plus event
+# frames_before = 500
+# frames_after = 500
+# time_window = frames_before + frames_after
+
+# # Number of top neurons to plot
+# top_neurons_count = 10
+
+# # Load the Session Neuron Statistics (from the previous code where the threshold was calculated)
+# session_stats_df = pd.read_csv('session_neuron_statistics.csv', index_col='Neuron')
+
+# # Loop through each session
+# for session_key in sessions_to_process:
+#     print(f"Processing {session_key}")
+    
+#     # Get session data from c_raw_sessions_with_cs_plus
+#     session_info = c_raw_sessions_with_cs_plus[session_key]
+#     session_data = session_info['data']
+    
+#     # Extract relevant cs_plus times (cs_plus_1, cs_plus_2, etc.)
+#     cs_plus_events = ['cs_plus_1', 'cs_plus_2', 'cs_plus_3', 'cs_plus_4']
+    
+#     # Extract the threshold for each neuron in this session
+#     threshold_col = f'{session_key}_threshold'
+#     neuron_thresholds = session_stats_df[threshold_col]
+
+#     for cs_plus_key in cs_plus_events:
+#         cs_plus_value = session_info[cs_plus_key]
+        
+#         # Define the start and end frame for the window around cs_plus
+#         start_idx = max(cs_plus_value - frames_before, 0)
+#         end_idx = min(cs_plus_value + frames_after, session_data.shape[0] - 1)
+
+#         # Extract the data for this time window
+#         window_data = session_data.iloc[start_idx:end_idx + 1, :]
+
+#         # Count how many times each neuron crosses its threshold in this window
+#         threshold_crossings = (window_data > neuron_thresholds).sum()
+
+#         # Identify the top neurons that cross the threshold the most
+#         top_neurons = threshold_crossings.nlargest(top_neurons_count).index
+
+#         # Plot the activity of the top neurons across the time window
+#         plt.figure(figsize=(10, 6))
+#         for neuron in top_neurons:
+#             plt.plot(window_data.index - cs_plus_value, window_data[neuron], label=f'Neuron {neuron}')
+        
+#         # Customize the plot
+#         plt.axvline(x=0, color='red', linestyle='--', label='cs_plus event')
+#         plt.title(f'{cs_plus_key} Activity of Top {top_neurons_count} Neurons Crossing Threshold - {session_key}')
+#         plt.xlabel('Frames (relative to cs_plus)')
+#         plt.ylabel('Neuronal Activity')
+#         plt.legend()
+#         plt.show()
+
+
+#%%
+
+############### END COUNTS #################
+
+
+""" NW analysis """
 
 """ 1. Network analysis per session - 
 one session: which neurons are active simultaneously?
