@@ -1,27 +1,38 @@
 """
-
-Please try this to build your network:
 Forget about the events, and use the following code to construct a network:
 
-# The following uses the variable activityis, which is a 2D numpy array that  contains the luminance profile, first index is the neuron number, second index is the frame. You can use the luminance profile that is z-score normalized over the session, but it should give the same result with the original data, so for a first try you can directly use the original data.
+# The following uses the variable activityis, which is a 2D numpy array that  
+# contains the luminance profile, first index is the neuron number, second index 
+# is the frame. You can use the luminance profile that is z-score normalized over 
+# the session, but it should give the same result with the original data, so for a 
+# first try you can directly use the original data.
 
-# What is done in the following: Get a correlation matrix, turn correlation matrix into connectivity map
+# What is done in the following: Get a correlation matrix, turn correlation matrix 
+# into connectivity map
 import numpy as np
 
-# first calculate correlation coefficient between all pre-selected neurons (first use all neurons, then calculate some network measures, see how they develop over extinction days, then select subset and see how this changes)
+# first calculate correlation coefficient between all pre-selected neurons 
+# (first use all neurons, then calculate some network measures, see how they develop over 
+# extinction days, then select subset and see how this changes)
 
-corr_mat = np.corrcoef(activity[selectedNeurons, :])    #replace selectedNeurons by : to analyse all neurons. This is heavy computing.
+corr_mat = np.corrcoef(activity[selectedNeurons, :])    #replace selectedNeurons by : 
+to analyse all neurons. This is heavy computing.
 
 # ignore self-connections by zeroing diagonal elements (since self-correlation is always 1)
 np.fill_diagonal(corr_mat, 0)
 
 # set threshold for correlation, so we don't take into account weak connections
-corr_th = 0.7       # play around with this a bit to see how strongly the correlation threshold changes the number of neurons in the network, but 0.7 sounds reasonable, work with that for the beginning
+corr_th = 0.7       # play around with this a bit to see how strongly the correlation 
+threshold changes the number of neurons in the network, but 0.7 sounds reasonable, 
+work with that for the beginning
 # zero all connections below threshold
 corr_mat[corr_mat < corr_th] = 0
 
 # create graph from correlation matrix
-G = nx.from_numpy_array(corr_mat)   # G is a network where still all neurons are part of the network, only that some neurons are not connected as we used a thresholding on the connection strength, i.e. the correlation strength. These unconnected neurons change the network measures, but keep them for the beginning.
+G = nx.from_numpy_array(corr_mat)   # G is a network where still all neurons are 
+part of the network, only that some neurons are not connected as we used a 
+thresholding on the connection strength, i.e. the correlation strength. 
+These unconnected neurons change the network measures, but keep them for the beginning.
 
 
 # Display using simple drawing. Fix seed to have the same result every time we run the code
@@ -158,3 +169,5 @@ for key, df in c_raw_all_sessions.items():
 #%%
     
 """ Use a correlation matrix for getting network """
+
+# only on id network
