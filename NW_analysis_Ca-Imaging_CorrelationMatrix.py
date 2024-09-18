@@ -1,11 +1,7 @@
 """
 Forget about the events, and use the following code to construct a network:
 
-# The following uses the variable activityis, which is a 2D numpy array that  
-# contains the luminance profile, first index is the neuron number, second index 
-# is the frame. You can use the luminance profile that is z-score normalized over 
-# the session, but it should give the same result with the original data, so for a 
-# first try you can directly use the original data.
+
 
 # What is done in the following: Get a correlation matrix, turn correlation matrix 
 # into connectivity map
@@ -88,6 +84,8 @@ with h5py.File(path_1012, 'r') as h5_file:
 # Convert the data  for 'C_Raw_all' and start frames to pandas DataFrames
 df_c_raw_all = pd.DataFrame(data_c_raw_all)
 
+df_c_raw_all.head()
+
 #%%
     
 with h5py.File(path_1012, 'r') as h5_file:
@@ -97,7 +95,9 @@ with h5py.File(path_1012, 'r') as h5_file:
 # Convert the data  for 'C_Raw_all' and start frames to pandas DataFrames
 df_start_frame_session = pd.DataFrame(start_frame_session)
 # header, nr of rows/columns of the DataFrame
+
 print(f"C_Raw_all: \n{df_c_raw_all.head()}")
+
 rows, columns = df_c_raw_all.shape
 print(f"\nNumber of rows: {rows}")
 print(f"Number of columns: {columns}")
@@ -129,6 +129,7 @@ sessions_to_process.append(final_session_key)
 
 print("Generated sessions_to_process:")
 print(sessions_to_process)
+
 
 
 # ['s1_0-22360', 's2_22361-44916', ..., 's7_191578-225080']
@@ -167,7 +168,123 @@ for key, df in c_raw_all_sessions.items():
     print(f"{key}: {df.shape}")
     
 #%%
+""" Transform into np array dict """
+
+#initialization of empty dict
+c_raw_all_sessions_np = {}
+
+for key, df in c_raw_all_sessions.items():
+    # Transpose the df and convert it to a "NumPy array"
+    transposed_array = df.T.to_numpy()
+    # Store the transposed array with the new key name, adding _np
+    new_key = f"{key}_np"
+    c_raw_all_sessions_np[new_key] = transposed_array
+
+# Check the shapes of the new arrays
+for key, array in c_raw_all_sessions_np.items():
+    print(f"{key}: {array.shape}")
+
+    
+#%%    
     
 """ Use a correlation matrix for getting network """
 
-# only on id network
+# Get a correlation matrix, turn correlation matrix into connectivity map
+
+# get np array from the df containing luminescence traces
+
+# The following uses the variable activityis, which is a 2D numpy array that  
+# contains the luminance profile, first index is the neuron number, second index 
+# is the frame. You can use the luminance profile that is z-score normalized over 
+# the session, but it should give the same result with the original data, so for a 
+# first try you can directly use the original data.
+
+#store data for each session in a np array
+#first index is the neuron number, second index is the  frame (time)
+
+
+
+def generate_correlation_matrix(dataframe):
+    """
+    Generate a Pearson correlation matrix for the given DataFrame.
+    
+    @params
+    dataframe (pd.DataFrame): 
+    Input DataFrame
+    
+    @return
+    pd.DataFrame: 
+    Pearson correlation matrix
+    """
+    correlation_matrix = dataframe.corr(method='pearson')
+    return correlation_matrix
+
+
+
+#%%
+
+
+
+def build_connectivity_map(correlation_matrix, threshold=0.7):
+    """
+    Build a connectivity map (graph) from the correlation matrix using a threshold.
+    
+    @params: correlation_matrix (as pd.DataFrame): 
+    The correlation matrix based on pearson correlation
+    threshold (float):
+    The correlation threshold to include connections/ edges in the graph
+    
+    Returns:
+    nx.Graph (result graph)
+    """
+    # Create an empty graph
+    G = nx.Graph()
+    
+    # Add nodes
+    for node in correlation_matrix.columns:
+        G.add_node(node)
+    
+    # Add edges based on the threshold
+    for i in range(len(correlation_matrix.columns)):
+        for j in range(i + 1, len(correlation_matrix.columns)):
+            if abs(correlation_matrix.iloc[i, j]) >= threshold:
+                G.add_edge(correlation_matrix.columns[i], correlation_matrix.columns[j], weight=correlation_matrix.iloc[i, j])
+    
+    return G
+
+def plot_graph(G):
+    """
+    Plotting of the graph (G)
+    
+    @params: 
+    G (nx.Graph)
+    """
+    pos = nx.spring_layout(G)
+    edges = G.edges(data=True)
+    weights = [edge[2]['weight'] for edge in edges]
+    
+    nx.draw(G, pos, with_labels=True, node_color='orange', node_size=500, edge_color=weights, edge_cmap=plt.cm.Blues, width=2)
+    plt.show()
+
+
+
+
+
+
+
+# plot signal intensitiy over time
+# %%
+#example session to generate nw
+key = 's1_0-22360_np'
+dataframe = pd.DataFrame(c_raw_all_sessions_np[key])
+
+# Generate the correlation matrix
+correlation_matrix = generate_correlation_matrix(dataframe)
+
+# Build the connectivity map
+G = build_connectivity_map(correlation_matrix, threshold=0.7)
+
+# Plot the graph
+plot_graph(G)
+
+# %%
