@@ -1,59 +1,4 @@
-"""
-Forget about the events, and use the following code to construct a network:
-
-# What is done in the following: Get a correlation matrix, turn correlation matrix 
-# into connectivity map
-import numpy as np
-
-# first calculate correlation coefficient between all pre-selected neurons 
-# (first use all neurons, then calculate some network measures, see how they develop over 
-# extinction days, then select subset and see how this changes)
-
-corr_mat = np.corrcoef(activity[selectedNeurons, :])    #replace selectedNeurons by : 
-to analyse all neurons. This is heavy computing.
-
-# ignore self-connections by zeroing diagonal elements (since self-correlation is always 1)
-np.fill_diagonal(corr_mat, 0)
-
-# set threshold for correlation, so we don't take into account weak connections
-corr_th = 0.7       # play around with this a bit to see how strongly the correlation 
-threshold changes the number of neurons in the network, but 0.7 sounds reasonable, 
-work with that for the beginning
-# zero all connections below threshold
-corr_mat[corr_mat < corr_th] = 0
-
-# create graph from correlation matrix
-G = nx.from_numpy_array(corr_mat)   # G is a network where still all neurons are 
-part of the network, only that some neurons are not connected as we used a 
-thresholding on the connection strength, i.e. the correlation strength. 
-These unconnected neurons change the network measures, but keep them for the beginning.
-
-
-# Display using simple drawing. Fix seed to have the same result every time we run the code
-nx.draw(G, pos=nx.spring_layout(G, seed=12345678), node_size=10, width=0.3)
-
-"""
-
-#%%
-""" Network analysis for one animal id (Batch A or B)"""
-# Analysis start: SEP24
-# collaboration: AG Lutz, Larglinda Islami
-# Ca-Imaging, 1-Photon
-# Batches organized in folder "data" and subfolders "Batch_A", "Batch_B"
-# analysis of .mat, using info about when tone is played for "alignment"
-# Info about data and project: https://gitlab.rlp.net/computationalresilience/ca-imaging
-
-""" Animal ids """
-
-#TODO Add info about R+/R-
-#R+
-#R-
-
-# discarded 934 and 1031 into backup folder due to missing frames (in total/ for 10 sessions)
-
-
-#%% [0]
-""" Imports """
+#%% Imports
 import h5py
 import pandas as pd
 import numpy as np
@@ -61,52 +6,42 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import networkx as nx
 
-#%% [1]
+#%% 
+""" Network analysis for one animal id (Batch A or B)"""
+
 """ 1. Data Access and Preprocessing """
 
-# choose based on heatmap animal that has many active neurons at beginning to 
-# have a good starting point for the analysis
-
-# Define the path to the .mat or HDF5 file 
-# file format trivially, stick to .mat as this is the original
-
+#TODO relative path! Traverse (sub)folders
 path_1012 = r"/home/manuela/Documents/PROJECT_NW_ANALYSIS_Ca-IMAGING_SEP24/data/Batch_B/Batch_B_2022_1012_CFC_GPIO/Batch_B_2022_1012_CFC_GPIO/Data_Miniscope_PP.mat"
 
-# Open the .mat file (load mat does not work for this .mat version) 
-# and extract C_Raw_all data (matrix)
+""" Extract info from C Raw all """
 with h5py.File(path_1012, 'r') as h5_file:
     # Access the "Data" group and extract the "C_raw_all" dataset
     data_c_raw_all = h5_file['Data']['C_Raw_all'][:]
     
 # Convert the data  for 'C_Raw_all' and start frames to pandas DataFrames
 df_c_raw_all = pd.DataFrame(data_c_raw_all)
-
-df_c_raw_all.head()
-
-#%%
-    
+""" Extract info from start Frame Sessions """
 with h5py.File(path_1012, 'r') as h5_file:
-    # Access the "Data" group and extract the "C_raw_all" dataset
+    # Access the "Data" group and extract the "C_raw_all" dataset from it
     start_frame_session = h5_file['Data']['Start_Frame_Session'][:]
 
-# Convert the data  for 'C_Raw_all' and start frames to pandas DataFrames
+# Convert the data  for 'C_Raw_all' and start frames to pandas DataFrames (df)
 df_start_frame_session = pd.DataFrame(start_frame_session)
-# header, nr of rows/columns of the DataFrame
+# header, nr of rows/columns of the df
 
 print(f"C_Raw_all: \n{df_c_raw_all.head()}")
-
-rows, columns = df_c_raw_all.shape
+rows, cols = df_c_raw_all.shape
 print(f"\nNumber of rows: {rows}")
-print(f"Number of columns: {columns}")
+print(f"Number of columns: {cols}")
 print(f"Start Frame Sessions: \n{df_start_frame_session.head()}")
-
-
+# %%
 #%% [2]
 """ 2. Session Key Generation
 
 Generate sessions_to_process list automatically """
 
-# list to store the session keys
+# initialize list 
 sessions_to_process = []
 
 # Loop through the start_frame_session
@@ -114,7 +49,7 @@ for i in range(1, len(df_start_frame_session.columns)):  # Start from session 1
     start = int(df_start_frame_session.iloc[0, i-1])
     end = int(df_start_frame_session.iloc[0, i]) - 1
     
-    # Create a session key 
+    # Create session key 
     session_key = f"s{i}_{start}-{end}"
     sessions_to_process.append(session_key)
 
@@ -127,17 +62,13 @@ sessions_to_process.append(final_session_key)
 print("Generated sessions_to_process:")
 print(sessions_to_process)
 
+#%%
+""" 3. Create windows and store them in a dictionary """
 
-
-# ['s1_0-22360', 's2_22361-44916', ..., 's7_191578-225080']
-
-#%% [2b]
-""" Create windows and store them in a dictionary """
-
-# dictionary to store the windows
+# dictto store the windows
 c_raw_all_sessions = {}
 
-# Loop through each start frame session to create the windows
+# Loop through each start frame session; create windows
 for i in range(len(df_start_frame_session.columns)):
     if i == 0:
         # First window starts at index 0
@@ -157,269 +88,197 @@ for i in range(len(df_start_frame_session.columns)):
     # Create a key like 's1_0-22485', 's2_22486-44647'...
     key = f"s{i+1}_{start}-{end}"
     
-    # Store the corresponding rows in the dictionary
+    # Store corresponding rows in the dictionary
     c_raw_all_sessions[key] = df_c_raw_all.iloc[start:end+1, :]
 
-# check content
+# check 
 for key, df in c_raw_all_sessions.items():
     print(f"{key}: {df.shape}")
-    
-#%%
-# """ Transform into np array dict """
-
-# #initialization of empty dict
-# c_raw_all_sessions_np = {}
-
-# for key, df in c_raw_all_sessions.items():
-#     # Transpose the df and convert it to a "NumPy array"
-#     #transposed_array = df.T.to_numpy()
-#     # Store the transposed array with the new key name, adding _np
-#     new_key = f"{key}_np"
-#     c_raw_all_sessions_np[new_key] = transposed_array
-
-# # Check the shapes of the new arrays
-# for key, array in c_raw_all_sessions_np.items():
-#     print(f"{key}: {array.shape}")
-
-#%%
-# Initialization of an empty dictionary to store NumPy arrays
-c_raw_all_sessions_np = {}
-
-# Loop through the sessions and convert each DataFrame to a NumPy array without transposing
-for key, df in c_raw_all_sessions.items():
-    # Convert the DataFrame directly to a NumPy array without transposing
-    array = df.to_numpy()
-    
-    # Store the array with the new key name, adding "_np"
-    new_key = f"{key}_np"
-    c_raw_all_sessions_np[new_key] = array
-
-# Check the shapes of the new arrays to ensure neurons (columns) and frames (rows) are correct
-for key, array in c_raw_all_sessions_np.items():
-    print(f"{key}: {array.shape}")
-
-    
-#%%    
-    
-""" Use a correlation matrix for getting network """
-
-# Get a correlation matrix, turn correlation matrix into connectivity map
-
-# get np array from the df containing luminescence traces
-
-# The following uses the variable activityis, which is a 2D numpy array that  
-# contains the luminance profile, first index is the neuron number, second index 
-# is the frame. You can use the luminance profile that is z-score normalized over 
-# the session, but it should give the same result with the original data, so for a 
-# first try you can directly use the original data.
-
-#store data for each session in a np array
-#first index is the neuron number, second index is the  frame (time)
-
-""" Functions for generating correlation matrix and connectivity maps, graphs """
-
-def generate_correlation_matrix(dataframe):
-    """
-    Generate a Pearson correlation matrix for the data frame
-    
-    @params
-    Input DataFrame (pd.DataFrame): 
-    
-    @return
-    pd.DataFrame: Pearson correlation matrix
-    """
-    correlation_matrix = dataframe.corr(method='pearson')
-    return correlation_matrix
-
-
-def build_connectivity_map(correlation_matrix, threshold=0.7):
-    """
-    Build a connectivity map (graph) from the correlation matrix using a threshold.
-    
-    @params: 
-    - correlation_matrix (as pd.DataFrame): correlation matrix based on pearson correlation 
-    - threshold (float): The correlation threshold to include connections/ edges in the graph
-    
-    Returns:
-    nx.Graph (result graph)
-    """
-    # Create an empty graph
-    G = nx.Graph()
-    
-    # Add nodes
-    for node in correlation_matrix.columns:
-        G.add_node(node)
-    
-    
-    for i in range(len(correlation_matrix.columns)):
-        for j in range(i + 1, len(correlation_matrix.columns)):
-            if abs(correlation_matrix.iloc[i, j]) >= threshold: # Add edges based on the threshold
-                G.add_edge(correlation_matrix.columns[i], correlation_matrix.columns[j], weight=correlation_matrix.iloc[i, j])
-    
-    return G
-
-""" filtered connectivity map for Graph """
-
-def build_filtered_connectivity_map(correlation_matrix, threshold=0.3):
-    """
-    Build a connectivity map (graph) from the correlation matrix using a threshold, 
-    only including nodes that meet the correlation threshold.
-    
-    @params:
-    correlation_matrix (pd.DataFrame): 
-    The correlation matrix
-    threshold (float): 
-    The correlation threshold for adding edges/nodes
-    
-    @return:
-    nx.Graph: 
-    The resulting graph with filtered connections
-    """
-    G = nx.Graph()
-
-    # do not add all nodes, but only if threshold is crossed
-    
-    for i in range(len(correlation_matrix.columns)):
-        for j in range(i + 1, len(correlation_matrix.columns)):
-            if abs(correlation_matrix.iloc[i, j]) >= threshold:
-                G.add_node(correlation_matrix.columns[i])
-                G.add_node(correlation_matrix.columns[j])
-                G.add_edge(correlation_matrix.columns[i], 
-                           correlation_matrix.columns[j], 
-                           weight=correlation_matrix.iloc[i, j])
-    
-    return G
-#df.to_csv('output.csv', index=False)
-
 
 #%%
 
-""" Heatmap of correlation map"""
+""" 4. Use extinction days in  c_raw_all_sessions for network analysis
+
+s4_91943-124993: (33051, 271)
+s5_124994-158590: (33597, 271)
+s6_158591-191577: (32987, 271)
+s7_191578-225080: (33503, 271)"""
 
 
-def plot_correlation_matrix(correlation_matrix):
-    """
-    Plot the correlation matrix as a heatmap.
-    
-    @params:
-    correlation_matrix (pd.DataFrame)
-    """
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(correlation_matrix, cmap="coolwarm", annot=False)
-    plt.title("Correlation Matrix Heatmap")
-    plt.show()
+key_s4 = 's4_91943-124993'
+key_s5 = 's5_124994-158590'
+key_s6 = 's6_158591-191577'
+key_s7 = 's7_191578-225080'
 
+activity_s4 = c_raw_all_sessions[key_s4]
+activity_s5 = c_raw_all_sessions[key_s5]
+activity_s6 = c_raw_all_sessions[key_s6]
+activity_s7 = c_raw_all_sessions[key_s7]
 
-# %%
-""" Uses unfiltered correlation map"""
-
-
-""" Session 4 """
-
-key_s4 = 's4_91943-124993_np'
-df_s4 = pd.DataFrame(c_raw_all_sessions_np[key_s4])
-
-# Generate the correlation matrix
-correlation_matrix_s4 = generate_correlation_matrix(df_s4)
-
-# Build the connectivity map
-G_s4 = build_connectivity_map(correlation_matrix, threshold=0.7)
-
-# Plot the graph
-plot_graph(G_s4)
 
 #%%
+#TODO write function for nw generation!
 
-# def plot_graph(G):
-#     """
-#     Plotting of the graph (G)
+# def plot_and_analyse_nw(activity_df, corr_th=0.2, seed=12345678):
+
     
-#     @params:
-#     G (nx.Graph)
-#     """
-#     pos = nx.spring_layout(G)
-#     edges = G.edges(data=True)
-#     weights = [edge[2]['weight'] for edge in edges]
-    
-#     nx.draw(G, pos, with_labels=True, node_color='orange', node_size=500, edge_color=weights, edge_cmap=plt.cm.Blues, width=2)
+#     # Step 1: Drop columns with NaN values - all!
+#     activity_df_non_nan = activity_df.dropna(how='any', axis=1)
+
+#     # Step 2: Compute correlation matrix
+#     corr_mat = np.corrcoef(activity_df_non_nan.T)  # Transpose so that neurons are along columns
+
+#     # Step 3: Zero diagonal elements to ignore self-connections
+#     np.fill_diagonal(corr_mat, 0)
+
+#     # Step 4: Zero out connections below the threshold
+#     corr_mat[corr_mat < corr_th] = 0
+
+#     # Step 5: Create a graph from the correlation matrix
+#     G = nx.from_numpy_array(corr_mat)
+
+#     # Step 6: Visualize the graph using a spring layout
+#     plt.figure(figsize=(10, 10))
+#     nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
+#     plt.title(f"Neuronal Network (Threshold {corr_th})")
 #     plt.show()
 
-#%%
+#     # Optional: Analyze graph metrics
+#     num_edges = G.number_of_edges()
+#     num_nodes = G.number_of_nodes()
+    
+#     # Output graph metrics
+#     print(f"Number of edges: {num_edges}")
+#     print(f"Number of nodes: {num_nodes}")
+    
+#     #return G, num_edges, num_nodes
+#     # Step 7: Compute mean degree of the whole network
+#     degrees = [degree for node, degree in G.degree()]
+#     mean_degree = np.mean(degrees)
+#     print(f"Mean degree of the whole network: {mean_degree}")
+    
+#     # Step 8: Calculate the number of sub-networks (connected components)
+#     components = list(nx.connected_components(G))
+#     num_sub_networks = len(components)
+#     print(f"Number of sub-networks: {num_sub_networks}")
+    
+#     # Step 9: Compute mean degree of sub-networks (connected components)
+#     # sub_network_degrees = []
+#     # for component in components:
+#     #     subgraph = G.subgraph(component)
+#     #     sub_network_degrees.append(np.mean([degree for node, degree in subgraph.degree()]))
+    
+#     # if sub_network_degrees:
+#     #     mean_sub_network_degree = np.mean(sub_network_degrees)
+#     #     print(f"Mean degree per sub-network: {mean_sub_network_degree}")
+    
+#     # Step 10: Compute assortativity (degree correlation)
+#     assortativity = nx.degree_assortativity_coefficient(G)
+#     print(f"Assortativity (degree correlation): {assortativity}")
 
-""" Generate new correlation matrices for Ex days"""
-
-# s4_91943-124993_np: (271, 33051)
-# s5_124994-158590_np: (271, 33597)
-# s6_158591-191577_np: (271, 32987)
-# s7_191578-225080_np: (271, 33503)
-
-#keys_ex_days = ['s4_91943-124993_np','s5_124994-158590_np','s6_158591-191577_np','s7_191578-225080_np',]
-
-key_s4 = 's4_91943-124993_np'
-key_s5 = 's5_124994-158590_np'
-key_s6 = 's6_158591-191577_np'
-key_s7 = 's7_191578-225080_np'
-
-df_s4 = pd.DataFrame(c_raw_all_sessions_np[key_s4])
-df_s5 = pd.DataFrame(c_raw_all_sessions_np[key_s5])
-df_s6 = pd.DataFrame(c_raw_all_sessions_np[key_s6])
-df_s7 = pd.DataFrame(c_raw_all_sessions_np[key_s7])
-
-#%%
-#takes 40min so do each in own cell and not loop
-""" Generate correlation matrix - s4 /Ex day 1"""
-
-corr_matrix_s4 = generate_correlation_matrix(df_s4)
-
-# Plot the correlation matrix as a heatmap
-plot_correlation_matrix(corr_matrix_s4)
-
-# Build the connectivity map based on threshold
-G_s4 = build_filtered_connectivity_map(corr_matrix_s4, threshold=0.3)
-
-# Plot the filtered graph
-plot_graph(G_s4)
-
-#%%
-""" Generate correlation matrix - s5 /Ex day 2"""
-
-corr_matrix_s5 = generate_correlation_matrix(df_s5)
-
-# Plot the correlation matrix as a heatmap
-plot_correlation_matrix(corr_matrix_s5)
-
-# Build the connectivity map based on threshold
-G_s5 = build_filtered_connectivity_map(corr_matrix_s5, threshold=0.3)
-
-# Plot the filtered graph
-plot_graph(G_s5)
+#     # Step 11: Compute clustering coefficient
+#     #clustering_coefficient = nx.average_clustering(G)
+#     #print(f"Average clustering coefficient: {clustering_coefficient}")
+    
+#     return G, num_edges, num_nodes, mean_degree, assortativity
+# #, mean_betweenness, mean_sub_network_degree, clustering_coefficient
 
 #%%
-""" Generate correlation matrix - s6 /Ex day 3"""
-
-corr_matrix_s6 = generate_correlation_matrix(df_s6)
-
-# Plot the correlation matrix as a heatmap
-plot_correlation_matrix(corr_matrix_s6)
-
-# Build the connectivity map based on threshold
-G_s6 = build_filtered_connectivity_map(corr_matrix_s6, threshold=0.3)
-
-# Plot the filtered graph
-plot_graph(G_s6)
+#default corr_th=0.2
+plot_and_analyse_nw(activity_s4)
 
 #%%
-""" Generate correlation matrix - s7 /Ex day 4"""
-
-corr_matrix_s7 = generate_correlation_matrix(df_s7)
-
-# Plot the correlation matrix as a heatmap
-plot_correlation_matrix(corr_matrix_s7)
-
-# Build the connectivity map based on threshold
-G_s7 = build_filtered_connectivity_map(corr_matrix_s7, threshold=0.3)
-
-# Plot the filtered graph
-plot_graph(G_s7)
+plot_and_analyse_nw(activity_s5)
 
 #%%
+
+plot_and_analyse_nw(activity_s6)
+
+#%%
+plot_and_analyse_nw(activity_s7)
+
+# %%
+#corr_th=0.5
+plot_nw(activity_s4, corr_th=0.5)
+plot_nw(activity_s5, corr_th=0.5)
+plot_nw(activity_s6, corr_th=0.5)
+plot_nw(activity_s7, corr_th=0.5)
+# %%
+
+# %%
+def plot_and_analyse_nw(activity_df, corr_th=0.2, seed=12345678):
+
+    
+    # Step 1: Drop columns with NaN values - all!
+    activity_df_non_nan = activity_df.dropna(how='any', axis=1)
+
+    # Step 2: Compute correlation matrix
+    corr_mat = np.corrcoef(activity_df_non_nan.T)  # Transpose so that neurons are along columns
+
+    # Step 3: Zero diagonal elements to ignore self-connections
+    np.fill_diagonal(corr_mat, 0)
+
+    # Step 4: Zero out connections below the threshold
+    corr_mat[corr_mat < corr_th] = 0
+
+    # Step 5: Create a graph from the correlation matrix
+    G = nx.from_numpy_array(corr_mat)
+
+    # Step 6: Visualize the graph using a spring layout
+    plt.figure(figsize=(10, 10))
+    nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
+    plt.title(f"Neuronal Network (Threshold {corr_th})")
+
+    plt.show()
+
+    # Optional: Analyze graph metrics
+    num_edges = G.number_of_edges()
+    num_nodes = G.number_of_nodes()
+    
+    # Output graph metrics
+    print(f"Number of edges: {num_edges}")
+    print(f"Number of nodes: {num_nodes}")
+    
+    #return G, num_edges, num_nodes
+    # Step 7: Compute mean degree of the whole network
+    degrees = [degree for node, degree in G.degree()]
+    mean_degree = np.mean(degrees)
+    print(f"Mean degree of the whole network: {mean_degree}")
+    
+    # Step 8: Calculate the number of sub-networks (connected components)
+    components = list(nx.connected_components(G))
+    num_sub_networks = len(components)
+    print(f"Number of sub-networks: {num_sub_networks}")
+    
+    # Step 9: Compute mean degree of sub-networks (connected components)
+    # sub_network_degrees = []
+    # for component in components:
+    #     subgraph = G.subgraph(component)
+    #     sub_network_degrees.append(np.mean([degree for node, degree in subgraph.degree()]))
+    
+    # if sub_network_degrees:
+    #     mean_sub_network_degree = np.mean(sub_network_degrees)
+    #     print(f"Mean degree per sub-network: {mean_sub_network_degree}")
+    
+    # Step 10: Compute assortativity (degree correlation)
+    assortativity = nx.degree_assortativity_coefficient(G)
+    print(f"Assortativity (degree correlation): {assortativity}")
+
+    # Step 11: Compute clustering coefficient
+    #clustering_coefficient = nx.average_clustering(G)
+    #print(f"Average clustering coefficient: {clustering_coefficient}")
+    
+    return G, num_edges, num_nodes, mean_degree, assortativity
+
+#%%
+    #default corr_th=0.2
+
+""" NW s4 """
+plot_and_analyse_nw(activity_s4)
+
+#%%
+plot_and_analyse_nw(activity_s5)
+plot_and_analyse_nw(activity_s6)
+plot_and_analyse_nw(activity_s7)
+
+# %%
