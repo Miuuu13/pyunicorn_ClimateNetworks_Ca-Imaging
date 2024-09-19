@@ -1,8 +1,6 @@
 """
 Forget about the events, and use the following code to construct a network:
 
-
-
 # What is done in the following: Get a correlation matrix, turn correlation matrix 
 # into connectivity map
 import numpy as np
