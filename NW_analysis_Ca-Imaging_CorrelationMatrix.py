@@ -44,7 +44,6 @@ nx.draw(G, pos=nx.spring_layout(G, seed=12345678), node_size=10, width=0.3)
 # Info about data and project: https://gitlab.rlp.net/computationalresilience/ca-imaging
 
 """ Animal ids """
-#batchB_ids = [935, 990, 1002, 1012, 1022, 1037] # remaining in batch B
 
 #TODO Add info about R+/R-
 #R+
@@ -71,7 +70,7 @@ import networkx as nx
 # Define the path to the .mat or HDF5 file 
 # file format trivially, stick to .mat as this is the original
 
-path_1012 = r"C:\Users\manue\Desktop\NW_Analysis_Ca-Imaging\data\Batch_B\Batch_B_2022_1012_CFC_GPIO\Batch_B_2022_1012_CFC_GPIO\Data_Miniscope_PP.mat"
+path_1012 = r"/home/manuela/Documents/PROJECT_NW_ANALYSIS_Ca-IMAGING_SEP24/data/Batch_B/Batch_B_2022_1012_CFC_GPIO/Batch_B_2022_1012_CFC_GPIO/Data_Miniscope_PP.mat"
 
 # Open the .mat file (load mat does not work for this .mat version) 
 # and extract C_Raw_all data (matrix)
@@ -166,19 +165,36 @@ for key, df in c_raw_all_sessions.items():
     print(f"{key}: {df.shape}")
     
 #%%
-""" Transform into np array dict """
+# """ Transform into np array dict """
 
-#initialization of empty dict
+# #initialization of empty dict
+# c_raw_all_sessions_np = {}
+
+# for key, df in c_raw_all_sessions.items():
+#     # Transpose the df and convert it to a "NumPy array"
+#     #transposed_array = df.T.to_numpy()
+#     # Store the transposed array with the new key name, adding _np
+#     new_key = f"{key}_np"
+#     c_raw_all_sessions_np[new_key] = transposed_array
+
+# # Check the shapes of the new arrays
+# for key, array in c_raw_all_sessions_np.items():
+#     print(f"{key}: {array.shape}")
+
+#%%
+# Initialization of an empty dictionary to store NumPy arrays
 c_raw_all_sessions_np = {}
 
+# Loop through the sessions and convert each DataFrame to a NumPy array without transposing
 for key, df in c_raw_all_sessions.items():
-    # Transpose the df and convert it to a "NumPy array"
-    transposed_array = df.T.to_numpy()
-    # Store the transposed array with the new key name, adding _np
+    # Convert the DataFrame directly to a NumPy array without transposing
+    array = df.to_numpy()
+    
+    # Store the array with the new key name, adding "_np"
     new_key = f"{key}_np"
-    c_raw_all_sessions_np[new_key] = transposed_array
+    c_raw_all_sessions_np[new_key] = array
 
-# Check the shapes of the new arrays
+# Check the shapes of the new arrays to ensure neurons (columns) and frames (rows) are correct
 for key, array in c_raw_all_sessions_np.items():
     print(f"{key}: {array.shape}")
 
@@ -200,37 +216,29 @@ for key, array in c_raw_all_sessions_np.items():
 #store data for each session in a np array
 #first index is the neuron number, second index is the  frame (time)
 
-
+""" Functions for generating correlation matrix and connectivity maps, graphs """
 
 def generate_correlation_matrix(dataframe):
     """
-    Generate a Pearson correlation matrix for the given DataFrame.
+    Generate a Pearson correlation matrix for the data frame
     
     @params
-    dataframe (pd.DataFrame): 
-    Input DataFrame
+    Input DataFrame (pd.DataFrame): 
     
     @return
-    pd.DataFrame: 
-    Pearson correlation matrix
+    pd.DataFrame: Pearson correlation matrix
     """
     correlation_matrix = dataframe.corr(method='pearson')
     return correlation_matrix
-
-
-
-#%%
-
 
 
 def build_connectivity_map(correlation_matrix, threshold=0.7):
     """
     Build a connectivity map (graph) from the correlation matrix using a threshold.
     
-    @params: correlation_matrix (as pd.DataFrame): 
-    The correlation matrix based on pearson correlation
-    threshold (float):
-    The correlation threshold to include connections/ edges in the graph
+    @params: 
+    - correlation_matrix (as pd.DataFrame): correlation matrix based on pearson correlation 
+    - threshold (float): The correlation threshold to include connections/ edges in the graph
     
     Returns:
     nx.Graph (result graph)
@@ -242,47 +250,176 @@ def build_connectivity_map(correlation_matrix, threshold=0.7):
     for node in correlation_matrix.columns:
         G.add_node(node)
     
-    # Add edges based on the threshold
+    
     for i in range(len(correlation_matrix.columns)):
         for j in range(i + 1, len(correlation_matrix.columns)):
-            if abs(correlation_matrix.iloc[i, j]) >= threshold:
+            if abs(correlation_matrix.iloc[i, j]) >= threshold: # Add edges based on the threshold
                 G.add_edge(correlation_matrix.columns[i], correlation_matrix.columns[j], weight=correlation_matrix.iloc[i, j])
     
     return G
 
-def plot_graph(G):
+""" filtered connectivity map for Graph """
+
+def build_filtered_connectivity_map(correlation_matrix, threshold=0.3):
     """
-    Plotting of the graph (G)
+    Build a connectivity map (graph) from the correlation matrix using a threshold, 
+    only including nodes that meet the correlation threshold.
     
-    @params: 
-    G (nx.Graph)
+    @params:
+    correlation_matrix (pd.DataFrame): 
+    The correlation matrix
+    threshold (float): 
+    The correlation threshold for adding edges/nodes
+    
+    @return:
+    nx.Graph: 
+    The resulting graph with filtered connections
     """
-    pos = nx.spring_layout(G)
-    edges = G.edges(data=True)
-    weights = [edge[2]['weight'] for edge in edges]
+    G = nx.Graph()
+
+    # do not add all nodes, but only if threshold is crossed
     
-    nx.draw(G, pos, with_labels=True, node_color='orange', node_size=500, edge_color=weights, edge_cmap=plt.cm.Blues, width=2)
+    for i in range(len(correlation_matrix.columns)):
+        for j in range(i + 1, len(correlation_matrix.columns)):
+            if abs(correlation_matrix.iloc[i, j]) >= threshold:
+                G.add_node(correlation_matrix.columns[i])
+                G.add_node(correlation_matrix.columns[j])
+                G.add_edge(correlation_matrix.columns[i], 
+                           correlation_matrix.columns[j], 
+                           weight=correlation_matrix.iloc[i, j])
+    
+    return G
+#df.to_csv('output.csv', index=False)
+
+
+#%%
+
+""" Heatmap of correlation map"""
+
+
+def plot_correlation_matrix(correlation_matrix):
+    """
+    Plot the correlation matrix as a heatmap.
+    
+    @params:
+    correlation_matrix (pd.DataFrame)
+    """
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(correlation_matrix, cmap="coolwarm", annot=False)
+    plt.title("Correlation Matrix Heatmap")
     plt.show()
 
 
-
-
-
-
-
-# plot signal intensitiy over time
 # %%
-#example session to generate nw
-key = 's1_0-22360_np'
-dataframe = pd.DataFrame(c_raw_all_sessions_np[key])
+""" Uses unfiltered correlation map"""
+
+
+""" Session 4 """
+
+key_s4 = 's4_91943-124993_np'
+df_s4 = pd.DataFrame(c_raw_all_sessions_np[key_s4])
 
 # Generate the correlation matrix
-correlation_matrix = generate_correlation_matrix(dataframe)
+correlation_matrix_s4 = generate_correlation_matrix(df_s4)
 
 # Build the connectivity map
-G = build_connectivity_map(correlation_matrix, threshold=0.7)
+G_s4 = build_connectivity_map(correlation_matrix, threshold=0.7)
 
 # Plot the graph
-plot_graph(G)
+plot_graph(G_s4)
 
-# %%
+#%%
+
+# def plot_graph(G):
+#     """
+#     Plotting of the graph (G)
+    
+#     @params:
+#     G (nx.Graph)
+#     """
+#     pos = nx.spring_layout(G)
+#     edges = G.edges(data=True)
+#     weights = [edge[2]['weight'] for edge in edges]
+    
+#     nx.draw(G, pos, with_labels=True, node_color='orange', node_size=500, edge_color=weights, edge_cmap=plt.cm.Blues, width=2)
+#     plt.show()
+
+#%%
+
+""" Generate new correlation matrices for Ex days"""
+
+# s4_91943-124993_np: (271, 33051)
+# s5_124994-158590_np: (271, 33597)
+# s6_158591-191577_np: (271, 32987)
+# s7_191578-225080_np: (271, 33503)
+
+#keys_ex_days = ['s4_91943-124993_np','s5_124994-158590_np','s6_158591-191577_np','s7_191578-225080_np',]
+
+key_s4 = 's4_91943-124993_np'
+key_s5 = 's5_124994-158590_np'
+key_s6 = 's6_158591-191577_np'
+key_s7 = 's7_191578-225080_np'
+
+df_s4 = pd.DataFrame(c_raw_all_sessions_np[key_s4])
+df_s5 = pd.DataFrame(c_raw_all_sessions_np[key_s5])
+df_s6 = pd.DataFrame(c_raw_all_sessions_np[key_s6])
+df_s7 = pd.DataFrame(c_raw_all_sessions_np[key_s7])
+
+#%%
+#takes 40min so do each in own cell and not loop
+""" Generate correlation matrix - s4 /Ex day 1"""
+
+corr_matrix_s4 = generate_correlation_matrix(df_s4)
+
+# Plot the correlation matrix as a heatmap
+plot_correlation_matrix(corr_matrix_s4)
+
+# Build the connectivity map based on threshold
+G_s4 = build_filtered_connectivity_map(corr_matrix_s4, threshold=0.3)
+
+# Plot the filtered graph
+plot_graph(G_s4)
+
+#%%
+""" Generate correlation matrix - s5 /Ex day 2"""
+
+corr_matrix_s5 = generate_correlation_matrix(df_s5)
+
+# Plot the correlation matrix as a heatmap
+plot_correlation_matrix(corr_matrix_s5)
+
+# Build the connectivity map based on threshold
+G_s5 = build_filtered_connectivity_map(corr_matrix_s5, threshold=0.3)
+
+# Plot the filtered graph
+plot_graph(G_s5)
+
+#%%
+""" Generate correlation matrix - s6 /Ex day 3"""
+
+corr_matrix_s6 = generate_correlation_matrix(df_s6)
+
+# Plot the correlation matrix as a heatmap
+plot_correlation_matrix(corr_matrix_s6)
+
+# Build the connectivity map based on threshold
+G_s6 = build_filtered_connectivity_map(corr_matrix_s6, threshold=0.3)
+
+# Plot the filtered graph
+plot_graph(G_s6)
+
+#%%
+""" Generate correlation matrix - s7 /Ex day 4"""
+
+corr_matrix_s7 = generate_correlation_matrix(df_s7)
+
+# Plot the correlation matrix as a heatmap
+plot_correlation_matrix(corr_matrix_s7)
+
+# Build the connectivity map based on threshold
+G_s7 = build_filtered_connectivity_map(corr_matrix_s7, threshold=0.3)
+
+# Plot the filtered graph
+plot_graph(G_s7)
+
+#%%
