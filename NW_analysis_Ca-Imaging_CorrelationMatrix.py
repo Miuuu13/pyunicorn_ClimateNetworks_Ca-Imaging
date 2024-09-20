@@ -136,7 +136,7 @@ def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
 
         # Store the session splits and original Start_Frame_Session into the new dictionary
         c_raw_all_sessions_dict[key] = {
-            'Start_Frame_Session': start_frame_session,
+            #'Start_Frame_Session': start_frame_session,
             'Sessions': session_dict
         }
 
@@ -145,17 +145,367 @@ def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
 #%%
 c_raw_all_sessions_dict = split_c_raw_all_into_sessions_dict(c_raw_all_dict)
 c_raw_all_sessions_dict.keys()
-c_raw_all_sessions_dict.
+#content_of_first_key = c_raw_all_sessions_dict["1012_B"]
+
+#print(content_of_first_key)
+	
+#now I have the session accessible for future analysis
 #%%
 
-#now I have the session accessible for future analysis
-""" Info about R+/ R- """
+""" Analysis without storing results """
+def plot_and_analyse_nw(activity_df, corr_th=0.2, seed=12345678):
+
+    """ Function for networl plot and analysis"""
+    # Step 1: Drop columns with NaN values - all!
+    activity_df_non_nan = activity_df.dropna(how='any', axis=1)
+
+    # Check if there is enough data to compute the correlation matrix
+    if activity_df_non_nan.shape[1] < 2:  # Fewer than 2 neurons (columns) left after dropping NaN
+        print(f"Skipping this session: Not enough neurons after dropping NaN values.")
+        return None  # Skip this session
+
+    # Step 2: Compute correlation matrix
+    corr_mat = np.corrcoef(activity_df_non_nan.T)  # Transpose so that neurons are along columns
+
+    # Step 3: Zero diagonal elements to ignore self-connections
+    np.fill_diagonal(corr_mat, 0)
+
+    # Step 4: Zero out connections below the threshold
+    corr_mat[corr_mat < corr_th] = 0
+
+    # Step 5: Create a graph from the correlation matrix
+    G = nx.from_numpy_array(corr_mat)
+
+    # Step 6: Visualize the graph using a spring layout
+    plt.figure(figsize=(10, 10))
+    nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
+    plt.title(f"Neuronal Network (Threshold {corr_th})")
+
+    plt.show()
+
+    # Analyze graph metrics
+    num_edges = G.number_of_edges()
+    num_nodes = G.number_of_nodes()
+    
+    # Output graph metrics
+    print(f"Number of edges: {num_edges}")
+    print(f"Number of nodes: {num_nodes}")
+    
+    #return G, num_edges, num_nodes
+    # Step 7: Compute mean degree of the whole network
+    degrees = [degree for node, degree in G.degree()]
+    mean_degree = np.mean(degrees)
+    print(f"Mean degree of the whole network: {mean_degree}")
+    
+    # Step 8: Calculate the number of sub-networks (connected components)
+    components = list(nx.connected_components(G))
+    num_sub_networks = len(components)
+    print(f"Number of sub-networks: {num_sub_networks}")
+    
+    assortativity = nx.degree_assortativity_coefficient(G)
+    print(f"Assortativity (degree correlation): {assortativity}")
+
+    
+    return G, num_edges, num_nodes, mean_degree, assortativity
+
+#%%
+
+""" run funcion for all keys (animals)"""
+# Iterate through each key in the session-splitted dict
+for key, data in c_raw_all_sessions_dict.items():
+    # For each key (animal): 10 sessions (multiple can be handled with ...)
+    print(f"Processing {key}...")
+    
+    # Get the sessions for the current key
+    sessions = data['Sessions']
+    
+    # Loop through each session
+    for session_key, session_data in sessions.items():
+        print(f"  Analysing session: {session_key}")
+        
+        # function call
+        plot_and_analyse_nw(session_data)
+
+
+#%%
+
+""" Analysis with storing results: save analysis in df and csv (later)"""
+
+#%%
+import pandas as pd
+
+# Initialize an empty list to store the results before converting to a DataFrame
+results = []
+
+# Iterate through each key in the session-splitted dictionary
+for key, data in c_raw_all_sessions_dict.items():
+    # Extract the animal ID and batch from the key using regex
+    match = re.search(r"(\d+)_([A-F])", key)
+    
+    if match:
+        animal_id = match.group(1)  # The numeric part before the underscore
+        batch = match.group(2)      # The capital letter after the underscore
+    
+    # Get the sessions for the current key
+    sessions = data['Sessions']
+    
+    # Loop through each session
+    for session_key, session_data in sessions.items():
+        # Get number of columns (neurons) and rows (time frames) from the session's activity data
+        nr_columns = session_data.shape[1]
+        nr_rows = session_data.shape[0]
+
+        # Run the plot_and_analyse_nw function to get network metrics
+        result = plot_and_analyse_nw(session_data)
+        
+        if result is not None:
+            G, num_edges, num_nodes, mean_degree, assortativity = result
+        else:
+            # If there's not enough data, set metrics to None
+            num_edges = num_nodes = mean_degree = assortativity = None
+
+        # Append the results as a dictionary to the list
+        results.append({
+            'id': animal_id,
+            'batch': batch,
+            'nr_columns': nr_columns,
+            'nr_rows': nr_rows,
+            'num_edges': num_edges,
+            'num_nodes': num_nodes,
+            'mean_degree': mean_degree,
+            'assortativity': assortativity
+        })
+
+# Convert the list of dictionaries to a DataFrame
+nw_results_df = pd.DataFrame(results)
+
+# Display the resulting DataFrame
+import ace_tools as tools; tools.display_dataframe_to_user(name="Network Analysis Results", dataframe=df_results)
+
+
+print(results)
+#%%
+
+""" save to csv """
+cwd = os.getcwd()
+out_path = os.path.join(cwd, 'network_analysis_results.csv') #cwd
+nw_results_df.to_csv(out_path, index=False)
+
+#%%
+""" Add info about R+/ R- in data frame """
+#R_plus and R_minus lists
 R_plus = [1037, 988, 1002, 936, 970] 
 
-R_minus = [1022, 994, 982, 990, 951, 935, 1012, 991, 955]	
+R_minus = [1022, 994, 982, 990, 951, 935, 1012, 991, 955]
+
+#%%
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###################
+
+
+
+
+
+
+
+
+
+
+
+
+# Initialize an empty DataFrame with specified columns
+nw_results_df = pd.DataFrame(columns=['id', 'batch', 'nr_columns', 'nr_rows', 'num_edges', 'num_nodes', 'mean_degree', 'assortativity', 'R_plus', 'R_minus'])
+
+
+def plot_and_analyse_nw(activity_df, corr_th=0.2, seed=12345678):
+    """ Function for plotting network and performing analysis """
+
+    # Step 1: Drop columns with NaN values - all!
+    activity_df_non_nan = activity_df.dropna(how='any', axis=1)
+
+    # Step 2: Compute correlation matrix
+    corr_mat = np.corrcoef(activity_df_non_nan.T)  # Transpose so that neurons are along columns
+
+    # Step 3: Zero diagonal elements to ignore self-connections
+    np.fill_diagonal(corr_mat, 0)
+
+    # Step 4: Zero out connections below the threshold
+    corr_mat[corr_mat < corr_th] = 0
+
+    # Step 5: Create a graph from the correlation matrix
+    G = nx.from_numpy_array(corr_mat)
+
+    # Step 6: Visualize the graph using a spring layout
+    plt.figure(figsize=(10, 10))
+    nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
+    plt.title(f"Neuronal Network (Threshold {corr_th})")
+    plt.show()
+
+    # Optional: Analyze graph metrics
+    num_edges = G.number_of_edges()
+    num_nodes = G.number_of_nodes()
+    
+    # Step 7: Compute mean degree of the whole network
+    degrees = [degree for node, degree in G.degree()]
+    mean_degree = np.mean(degrees)
+    
+    # Step 8: Calculate the number of sub-networks (connected components)
+    components = list(nx.connected_components(G))
+    num_sub_networks = len(components)
+    
+    # Step 10: Compute assortativity (degree correlation)
+    assortativity = nx.degree_assortativity_coefficient(G)
+
+    # Return all required values
+    return G, num_edges, num_nodes, mean_degree, assortativity
+
+# Loop through all sessions in c_raw_all_sessions_dict
+for key, session_data in c_raw_all_sessions_dict.items():
+    # Extract the animal_id and batch from the key (e.g., '1022_A')
+    match = re.match(r"(\d{3,4})_([A-F])", key)
+    if match:
+        animal_id = int(match.group(1))
+        batch = match.group(2)
+
+    # Loop through each session within the data
+    for session_key, activity_df in session_data['Sessions'].items():
+        # Get the number of rows and columns for each session
+        nr_rows, nr_columns = activity_df.shape
+
+        # Perform the network analysis using the function
+        G, num_edges, num_nodes, mean_degree, assortativity = plot_and_analyse_nw(activity_df)
+
+        # Check if the animal_id is in R_plus or R_minus and assign 1 or 0
+        is_R_plus = 1 if animal_id in R_plus else 0
+        is_R_minus = 1 if animal_id in R_minus else 0
+
+        # Create a new DataFrame row with all the computed values
+        new_row = pd.DataFrame({
+            'id': [animal_id],
+            'batch': [batch],
+            'nr_columns': [nr_columns],
+            'nr_rows': [nr_rows],
+            'num_edges': [num_edges],
+            'num_nodes': [num_nodes],
+            'mean_degree': [mean_degree],
+            'assortativity': [assortativity],
+            'R_plus': [is_R_plus],
+            'R_minus': [is_R_minus]
+        })
+
+        # Concatenate the new row with the existing DataFrame
+        nw_results_df = pd.concat([nw_results_df, new_row], ignore_index=True)
+
+# Display the final DataFrame with the results
+print(nw_results_df)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# %%
+
+
+def plot_and_analyse_nw(activity_df, corr_th=0.2, seed=12345678):
+    """ Function for plotting network and performing analysis """
+
+    
+    # Step 1: Drop columns with NaN values - all!
+    activity_df_non_nan = activity_df.dropna(how='any', axis=1)
+
+    # Step 2: Compute correlation matrix
+    corr_mat = np.corrcoef(activity_df_non_nan.T)  # Transpose so that neurons are along columns
+
+    # Step 3: Zero diagonal elements to ignore self-connections
+    np.fill_diagonal(corr_mat, 0)
+
+    # Step 4: Zero out connections below the threshold
+    corr_mat[corr_mat < corr_th] = 0
+
+    # Step 5: Create a graph from the correlation matrix
+    G = nx.from_numpy_array(corr_mat)
+
+    # Step 6: Visualize the graph using a spring layout
+    plt.figure(figsize=(10, 10))
+    nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
+    plt.title(f"Neuronal Network (Threshold {corr_th})")
+
+    plt.show()
+
+    # Optional: Analyze graph metrics
+    num_edges = G.number_of_edges()
+    num_nodes = G.number_of_nodes()
+    
+    # Output graph metrics
+    print(f"Number of edges: {num_edges}")
+    print(f"Number of nodes: {num_nodes}")
+    
+    #return G, num_edges, num_nodes
+    # Step 7: Compute mean degree of the whole network
+    degrees = [degree for node, degree in G.degree()]
+    mean_degree = np.mean(degrees)
+    print(f"Mean degree of the whole network: {mean_degree}")
+    
+    # Step 8: Calculate the number of sub-networks (connected components)
+    components = list(nx.connected_components(G))
+    num_sub_networks = len(components)
+    print(f"Number of sub-networks: {num_sub_networks}")
+    
+    # Step 9: Compute mean degree of sub-networks (connected components)
+    # sub_network_degrees = []
+    # for component in components:
+    #     subgraph = G.subgraph(component)
+    #     sub_network_degrees.append(np.mean([degree for node, degree in subgraph.degree()]))
+    
+    # if sub_network_degrees:
+    #     mean_sub_network_degree = np.mean(sub_network_degrees)
+    #     print(f"Mean degree per sub-network: {mean_sub_network_degree}")
+    
+    # Step 10: Compute assortativity (degree correlation)
+    assortativity = nx.degree_assortativity_coefficient(G)
+    print(f"Assortativity (degree correlation): {assortativity}")
+
+    # Step 11: Compute clustering coefficient
+    #clustering_coefficient = nx.average_clustering(G)
+    #print(f"Average clustering coefficient: {clustering_coefficient}")
+    
+    return G, num_edges, num_nodes, mean_degree, assortativity
+
+
+#%%
+
+nwresults_df = []
 
 
 
@@ -443,3 +793,52 @@ plot_and_analyse_nw(activity_s6)
 plot_and_analyse_nw(activity_s7)
 
 # %%
+def plot_and_analyse_nw(activity_df, corr_th=0.2, seed=12345678):
+
+    
+    # Step 1: Drop columns with NaN values - all!
+    activity_df_non_nan = activity_df.dropna(how='any', axis=1)
+
+    # Step 2: Compute correlation matrix
+    corr_mat = np.corrcoef(activity_df_non_nan.T)  # Transpose so that neurons are along columns
+
+    # Step 3: Zero diagonal elements to ignore self-connections
+    np.fill_diagonal(corr_mat, 0)
+
+    # Step 4: Zero out connections below the threshold
+    corr_mat[corr_mat < corr_th] = 0
+
+    # Step 5: Create a graph from the correlation matrix
+    G = nx.from_numpy_array(corr_mat)
+
+    # Step 6: Visualize the graph using a spring layout
+    plt.figure(figsize=(10, 10))
+    nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
+    plt.title(f"Neuronal Network (Threshold {corr_th})")
+
+    plt.show()
+
+    # Analyze graph metrics
+    num_edges = G.number_of_edges()
+    num_nodes = G.number_of_nodes()
+    
+    # Output graph metrics
+    print(f"Number of edges: {num_edges}")
+    print(f"Number of nodes: {num_nodes}")
+    
+    #return G, num_edges, num_nodes
+    # Step 7: Compute mean degree of the whole network
+    degrees = [degree for node, degree in G.degree()]
+    mean_degree = np.mean(degrees)
+    print(f"Mean degree of the whole network: {mean_degree}")
+    
+    # Step 8: Calculate the number of sub-networks (connected components)
+    components = list(nx.connected_components(G))
+    num_sub_networks = len(components)
+    print(f"Number of sub-networks: {num_sub_networks}")
+    
+    assortativity = nx.degree_assortativity_coefficient(G)
+    print(f"Assortativity (degree correlation): {assortativity}")
+
+    
+    return G, num_edges, num_nodes, mean_degree, assortativity
