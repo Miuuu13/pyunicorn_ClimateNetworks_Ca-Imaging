@@ -78,7 +78,7 @@ c_raw_all_dict.keys()
 
 #%%
 
-""" II. Generate dictionary, capturing session-specific info about Ca-Imaging data """
+""" II.) Generate dictionary, capturing session-specific info about Ca-Imaging data """
 # use "c_raw_all_dict" and split info in key "data_c_raw_all according" to key "start_frame_session"
 
 def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
@@ -136,7 +136,7 @@ def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
 
         # Store the session splits and original Start_Frame_Session into the new dictionary
         c_raw_all_sessions_dict[key] = {
-            #'Start_Frame_Session': start_frame_session,
+            'Start_Frame_Session': start_frame_session,
             'Sessions': session_dict
         }
 
@@ -152,7 +152,6 @@ c_raw_all_sessions_dict.keys()
 #now I have the session accessible for future analysis
 #%%
 
-""" Analysis without storing results """
 def plot_and_analyse_nw(activity_df, corr_th=0.2, seed=12345678):
 
     """ Function for networl plot and analysis"""
@@ -208,34 +207,115 @@ def plot_and_analyse_nw(activity_df, corr_th=0.2, seed=12345678):
     
     return G, num_edges, num_nodes, mean_degree, assortativity
 
+
 #%%
 
-""" run funcion for all keys (animals)"""
-# Iterate through each key in the session-splitted dict
+# Initialize an empty dictionary to store the network results
+nw_results = {}
+
+# Iterate through each key in the session-splitted dictionary
 for key, data in c_raw_all_sessions_dict.items():
-    # For each key (animal): 10 sessions (multiple can be handled with ...)
-    print(f"Processing {key}...")
+    # Extract the animal ID and batch from the key using regex
+    match = re.search(r"(\d+)_([A-F])", key)
+    
+    if match:
+        animal_id = match.group(1)  # The numeric part before the underscore
+        batch = match.group(2)      # The capital letter after the underscore
+    
+    # Create an entry in nw_results for this animal and batch
+    nw_results[key] = {}
     
     # Get the sessions for the current key
     sessions = data['Sessions']
     
     # Loop through each session
     for session_key, session_data in sessions.items():
-        print(f"  Analysing session: {session_key}")
+        # Get number of columns (neurons) and rows (time frames) from the session's activity data
+        nr_columns = session_data.shape[1]
+        nr_rows = session_data.shape[0]
+
+        # Run the plot_and_analyse_nw function to get network metrics
+        result = plot_and_analyse_nw(session_data)
         
-        # function call
-        plot_and_analyse_nw(session_data)
+        if result is not None:
+            G, num_edges, num_nodes, mean_degree, assortativity = result
+        else:
+            # If there's not enough data, set metrics to None
+            num_edges = num_nodes = mean_degree = assortativity = None
+
+        # Store the results for the current session in the nw_results dictionary
+        nw_results[key][session_key] = {
+            'id': animal_id,
+            'batch': batch,
+            'nr_columns': nr_columns,
+            'nr_rows': nr_rows,
+            'num_edges': num_edges,
+            'num_nodes': num_nodes,
+            'mean_degree': mean_degree,
+            'assortativity': assortativity
+        }
+
+# Now nw_results contains all the analysis results
+
+#%%
+nw_results.keys()
+#%%
+
+# Initialize an empty list to store concatenated results
+concatenated_results = []
+
+# Iterate through nw_results and extract data
+for key, sessions in nw_results.items():
+    for session_name, data in sessions.items():
+        # Combine the key (animal ID and batch) with session data
+        session_data = {
+            'animal_key': key,
+            'session': session_name,
+            'id': data['id'],
+            'batch': data['batch'],
+            'nr_columns': data['nr_columns'],
+            'nr_rows': data['nr_rows'],
+            'num_edges': data['num_edges'],
+            'num_nodes': data['num_nodes'],
+            'mean_degree': data['mean_degree'],
+            'assortativity': data['assortativity']
+        }
+        
+        # Concatenate (store) this session's data into the list
+        concatenated_results.append(session_data)
+
+# Now print each entry in the concatenated results
+for entry in concatenated_results:
+    print(entry)
+
+
+
+#%%
+
+""" Analysis without storing results """
+# """ run funcion for all keys (animals)"""
+# # Iterate through each key in the session-splitted dict
+# for key, data in c_raw_all_sessions_dict.items():
+#     # For each key (animal): 10 sessions (multiple can be handled with ...)
+#     print(f"Processing {key}...")
+    
+#     # Get the sessions for the current key
+#     sessions = data['Sessions']
+    
+#     # Loop through each session
+#     for session_key, session_data in sessions.items():
+#         print(f"  Analysing session: {session_key}")
+        
+#         # function call
+#         plot_and_analyse_nw(session_data)
 
 
 #%%
 
 """ Analysis with storing results: save analysis in df and csv (later)"""
 
-#%%
-import pandas as pd
-
-# Initialize an empty list to store the results before converting to a DataFrame
-results = []
+# Initialize an empty dict to store the results before converting to a DataFrame
+nw_results = {}
 
 # Iterate through each key in the session-splitted dictionary
 for key, data in c_raw_all_sessions_dict.items():
