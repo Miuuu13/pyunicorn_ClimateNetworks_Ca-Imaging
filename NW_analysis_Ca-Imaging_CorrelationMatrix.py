@@ -66,6 +66,7 @@ def walk_through_data_and_extract_data_from_matlab_file():
                             'C_Raw_all': data_c_raw_all,
                             'Start_Frame_Session': start_frame_session
                         }
+                        
 
     # return the dictionary with all extracted data
     return c_raw_all_dict
@@ -81,58 +82,49 @@ c_raw_all_dict.keys()
 """ II.) Generate dictionary, capturing session-specific info about Ca-Imaging data """
 # use "c_raw_all_dict" and split info in key "data_c_raw_all according" to key "start_frame_session"
 
-def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
-    """ Function to generate new dictionary by
-    splitting C_Raw_all (luminescence matrix) into sessions 
-    using start info in Start_Frame_sessions (only start of the session given)"""
+#extract start frame session once as list
 
-    # New dict to store "session-splitted" Ca-Imaging data
+def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
+    """ Function to generate a new dictionary by
+    splitting C_Raw_all (luminescence matrix) into sessions 
+    using start info in Start_Frame_sessions (only start of the session given) """
+
+    # New dict to store "session-split" Ca-Imaging data
     c_raw_all_sessions_dict = {}
 
-    # Loop through each key in the original dict
+    # Loop through each animal's data
     for key, data in c_raw_all_dict.items():
-        # Extract C_Raw_all and Start_Frame_Session info
-        c_raw_all = data['C_Raw_all']
-        start_frame_session = data['Start_Frame_Session']
+        c_raw_all = data['C_Raw_all']  # Luminescence matrix (neural activity)
+        start_frame_session = data['Start_Frame_Session']  # Start frames
 
-        # Convert the arrays to data frames for easier handling
+        # Convert to DataFrame for easier manipulation
         df_c_raw_all = pd.DataFrame(c_raw_all)
         df_start_frame_session = pd.DataFrame(start_frame_session).transpose()
 
-        # List to store session keys
-        sessions_to_process = []
-
-        # Create session keys and process C_Raw_all into windows (sessions)
-        for i in range(1, len(df_start_frame_session.columns)):
-            start = int(df_start_frame_session.iloc[0, i-1])
-            end = int(df_start_frame_session.iloc[0, i]) - 1
-
-            session_key = f"s{i}_{start}-{end}"
-            sessions_to_process.append(session_key)
-
-        # Add the final session
-        final_start = int(df_start_frame_session.iloc[0, -1])
-        final_end = len(df_c_raw_all) - 1
-        final_session_key = f"s{len(df_start_frame_session.columns)}_{final_start}-{final_end}"
-        sessions_to_process.append(final_session_key)
-
-        # Dictionary to store each session's data
+        # Initialize session dictionary for current animal
         session_dict = {}
 
-        # Loop through each session and store corresponding C_Raw_all data
-        for i, session_key in enumerate(sessions_to_process):
-            if i == 0:
-                start = 0
-            else:
-                start = int(df_start_frame_session.iloc[0, i])
+        # Extract start frame positions as a list of indices
+        start_frames = df_start_frame_session.iloc[0].tolist()
 
-            if i < len(df_start_frame_session.columns) - 1:
-                end = int(df_start_frame_session.iloc[0, i+1]) - 1
-            else:
-                end = len(df_c_raw_all) - 1
+        # Loop over start frames to split data into sessions
+        num_sessions = len(start_frames)
 
-            # Store the session in the session_dict
-            session_dict[session_key] = df_c_raw_all.iloc[start:end+1, :]
+        for i in range(num_sessions):
+            start = start_frames[i]  # Start frame of current session
+
+            # Determine the end frame for the current session
+            if i < num_sessions - 1:
+                end = start_frames[i + 1] - 1  # End frame is just before the next session's start
+            else:
+                end = len(df_c_raw_all) - 1  # Last session goes until the end of the data
+
+            # Create session key and split data
+            session_key = f"s{i+1}_{start}-{end}"
+            print(f"Processing session: {session_key}, Start: {start}, End: {end}")
+
+            # Store the session data in the session_dict
+            session_dict[session_key] = df_c_raw_all.iloc[start:end + 1, :]
 
         # Store the session splits and original Start_Frame_Session into the new dictionary
         c_raw_all_sessions_dict[key] = {
@@ -142,13 +134,206 @@ def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
 
     return c_raw_all_sessions_dict
 
+
+#%%
+def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
+    """ Function to generate a new dictionary by
+    splitting C_Raw_all (luminescence matrix) into sessions 
+    using start info in Start_Frame_sessions (only start of the session given) """
+
+    # New dict to store "session-split" Ca-Imaging data
+    c_raw_all_sessions_dict = {}
+
+    # Loop through each animal's data
+    for key, data in c_raw_all_dict.items():
+        c_raw_all = data['C_Raw_all']  # Luminescence matrix (neural activity)
+        
+        # Extract start frame session as a list
+        start_frame_session = data['Start_Frame_Session']  # Start frames
+        start_frames = list(start_frame_session.flatten())  # Ensure it's a flat list of start frames
+
+        # Convert c_raw_all to DataFrame for easier manipulation
+        df_c_raw_all = pd.DataFrame(c_raw_all)
+
+        # Initialize session dictionary for current animal
+        session_dict = {}
+
+        # Loop over start frames to split data into sessions
+        num_sessions = len(start_frames)
+
+        for i in range(num_sessions):
+            start = start_frames[i]  # Start frame of current session
+
+            # Determine the end frame for the current session
+            if i < num_sessions - 1:
+                end = start_frames[i + 1] - 1  # End frame is just before the next session's start
+            else:
+                end = len(df_c_raw_all) - 1  # Last session goes until the end of the data
+
+            # Create session key and split data
+            session_key = f"s{i+1}_{start}-{end}"
+            print(f"Processing session: {session_key}, Start: {start}, End: {end}")
+
+            # Store the session data in the session_dict
+            session_dict[session_key] = df_c_raw_all.iloc[start:end + 1, :]
+
+        # Store the session splits and original Start_Frame_Session into the new dictionary
+        c_raw_all_sessions_dict[key] = {
+            'Start_Frame_Session': start_frame_session,
+            'Sessions': session_dict
+        }
+
+    return c_raw_all_sessions_dict
+#%%
+def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
+    """ Function to generate new dictionary by
+    splitting C_Raw_all (luminescence matrix) into sessions 
+    using start info in Start_Frame_sessions (only start of the session given)"""
+
+    # New dict to store "session-splitted" Ca-Imaging data
+    c_raw_all_sessions_dict = {}
+
+    # Loop through each animal's data
+    for key, data in c_raw_all_dict.items():
+        c_raw_all = data['C_Raw_all']
+        start_frame_session = data['Start_Frame_Session']
+
+        # Convert to DataFrame for easier manipulation
+        df_c_raw_all = pd.DataFrame(c_raw_all)
+        df_start_frame_session = pd.DataFrame(start_frame_session).transpose()
+
+        # Initialize session dictionary for current animal
+        session_dict = {}
+
+        # Loop over start frames to split data into sessions
+        num_sessions = df_start_frame_session.shape[1]
+
+        for i in range(num_sessions):
+            start = int(df_start_frame_session.iloc[0, i])  # Start frame of current session
+            if i < num_sessions - 1:
+                end = int(df_start_frame_session.iloc[0, i + 1]) - 1  # End frame of current session (start of next session - 1)
+            else:
+                end = len(df_c_raw_all) - 1  # Last session goes until the end of the data
+
+            session_key = f"s{i+1}_{start}-{end}"
+            print(f"Processing session: {session_key}, Start: {start}, End: {end}")
+
+            # Store the session data in session_dict
+            session_dict[session_key] = df_c_raw_all.iloc[start:end + 1, :]
+
+        # Store the session splits and original Start_Frame_Session into the new dictionary
+        c_raw_all_sessions_dict[key] = {
+            'Start_Frame_Session': start_frame_session,
+            'Sessions': session_dict
+        }
+
+    return c_raw_all_sessions_dict
+
+# Visualize session summaries for the first key in the split data
+def visualize_sessions_summary(c_raw_all_sessions_dict):
+    # Extracting the first key from c_raw_all_sessions_dict
+    first_key = list(c_raw_all_sessions_dict.keys())[0]
+
+    # Extracting all sub-keys (sessions) 
+    session_data = c_raw_all_sessions_dict[first_key]['Sessions']  
+
+    # Create a new Df to summarize the shape 
+    session_summary = {session_key: {'num_neurons': session_df.shape[1], 'num_frames': session_df.shape[0]}
+                       for session_key, session_df in session_data.items()}
+
+    df_sessions_summary = pd.DataFrame.from_dict(session_summary, orient='index')
+
+    print(df_sessions_summary)
+
+
+c_raw_all_sessions_dict = split_c_raw_all_into_sessions_dict(c_raw_all_dict)
+
+visualize_sessions_summary(c_raw_all_sessions_dict)
+
+# def split_c_raw_all_into_sessions_dict(c_raw_all_dict):
+#     """ Function to generate new dictionary by
+#     splitting C_Raw_all (luminescence matrix) into sessions 
+#     using start info in Start_Frame_sessions (only start of the session given)"""
+
+#     # New dict to store "session-splitted" Ca-Imaging data
+#     c_raw_all_sessions_dict = {}
+
+#     # Loop through each key in the original dict
+#     for key, data in c_raw_all_dict.items():
+#         # Extract C_Raw_all and Start_Frame_Session info
+#         c_raw_all = data['C_Raw_all']
+#         start_frame_session = data['Start_Frame_Session']
+
+#         # Convert the arrays to data frames for easier handling
+#         df_c_raw_all = pd.DataFrame(c_raw_all)
+#         df_start_frame_session = pd.DataFrame(start_frame_session).transpose()
+
+#         # List to store session keys
+#         sessions_to_process = []
+
+#         # Create session keys and process C_Raw_all into windows (sessions)
+#         for i in range(1, len(df_start_frame_session.columns)):
+#             start = int(df_start_frame_session.iloc[0, i-1])
+#             end = int(df_start_frame_session.iloc[0, i]) - 1
+
+#             session_key = f"s{i}_{start}-{end}"
+#             sessions_to_process.append(session_key)
+
+#         # Add the final session
+#         final_start = int(df_start_frame_session.iloc[0, -1])
+#         final_end = len(df_c_raw_all) - 1
+#         final_session_key = f"s{len(df_start_frame_session.columns)}_{final_start}-{final_end}"
+#         sessions_to_process.append(final_session_key)
+
+#         # Dictionary to store each session's data
+#         session_dict = {}
+
+#         # Loop through each session and store corresponding C_Raw_all data
+#         for i, session_key in enumerate(sessions_to_process):
+#             if i == 0:
+#                 start = 0
+#             else:
+#                 start = int(df_start_frame_session.iloc[0, i])
+
+#             if i < len(df_start_frame_session.columns) - 1:
+#                 end = int(df_start_frame_session.iloc[0, i+1]) - 1
+#             else:
+#                 end = len(df_c_raw_all) - 1
+
+#             # Store the session in the session_dict
+#             session_dict[session_key] = df_c_raw_all.iloc[start:end+1, :]
+
+#         # Store the session splits and original Start_Frame_Session into the new dictionary
+#         c_raw_all_sessions_dict[key] = {
+#             'Start_Frame_Session': start_frame_session,
+#             'Sessions': session_dict
+#         }
+
+#     return c_raw_all_sessions_dict
+
 #%%
 c_raw_all_sessions_dict = split_c_raw_all_into_sessions_dict(c_raw_all_dict)
 c_raw_all_sessions_dict.keys()
 #content_of_first_key = c_raw_all_sessions_dict["1012_B"]
 
 #print(content_of_first_key)
-	
+#%%
+# Extracting the first key from c_raw_all_sessions_dict
+first_key = list(c_raw_all_sessions_dict.keys())[0]
+
+# Extracting all sub-keys (sessions) within the first key, excluding 'Start_Frame_Session'
+session_data = c_raw_all_sessions_dict[first_key]['Sessions']  # This only extracts session-specific data
+
+# Create a new Df to summarize the shape of each session's data
+session_summary = {session_key: {'num_neurons': session_df.shape[1], 'num_frames': session_df.shape[0]}
+                   for session_key, session_df in session_data.items()}
+
+# Convert the summary data to a df
+df_sessions_summary = pd.DataFrame.from_dict(session_summary, orient='index')
+
+print(df_sessions_summary)
+
+
 #now I have the session accessible for future analysis
 #%%
 
@@ -288,8 +473,29 @@ for key, sessions in nw_results.items():
 for entry in concatenated_results:
     print(entry)
 
+# Convert list of dictionaries to a DataFrame
+nw_results_concat_df = pd.DataFrame(concatenated_results)
 
+# Save the DataFrame to a CSV file in the current working directory (cwd)
+csv_filename = "NW_analysis_results.csv"
+nw_results_concat_df.to_csv(csv_filename, index=False)
 
+# Print confirmation with file path
+print(f"Data has been saved to {os.path.join(os.getcwd(), csv_filename)}")
+
+#%%
+
+# Extracting the first key from nw_results
+first_key = list(nw_results.keys())[0]
+
+# Extracting all sub-keys (sessions) within the first key
+session_data = nw_results[first_key]
+
+# Converting the session data into a DataFrame for easier visualization
+df_sessions = pd.DataFrame.from_dict(session_data, orient='index')
+
+# Displaying the DataFrame
+print(df_sessions)
 #%%
 
 """ Analysis without storing results """
