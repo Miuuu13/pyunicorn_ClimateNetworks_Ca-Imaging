@@ -1,0 +1,24 @@
+Network dynamics during auditory fear conditionng after PTSD paradigm
+Network theory - Introduction
+…
+
+Network analysis
+…
+Luminance Heatmap:
+…
+
+
+Mail from Janina
+
+Siehe plots in gitlab folder networkAnalysis und HeatmapPlot. Here our story:
+
+networkAnalysis:
+Density is relatively constant for both R+ and R-, with a slightly higher density for R+. That means R+ networks have more connections than R-, relative to the number of nodes. Overall, we need to be careful as our R- have much mode nodes, hence all analysis is preliminary until we are sure we see an effect of the resilience, and not only of network size.
+Transitivity ("number of triangles", i.e. fraction of all possible triangles) decreases over time more R+ than for R-, same for avg_clustering. that means that the average number of triangles of a given node is also reduced, both are related.
+
+Luminance Heatmap:
+Plotted in subfolder fig is the mean luminance, zscore normalized, over all animals (R+ and R- separately) and over all neurons, and over all CS+ tone presentations. First vertical line is tone starts, second vertical line is shock started in the shock session, and third line is end of tone, time is in seconds aligned to tone starts.  It seems that the R- react much stronger to the time at which a shock might be expected. This is true for day 1 and 2 (first and second line of the yaxis), then the effect disappears, there seems to be some extinction.
+
+Preliminary Conclusion: Along the subsequent days of extinction, the network of R+ animals loose complexity, while the R- animals stay at the same level of complexity.
+
+Als Beispiel-Netzwerke könntest du die hier abgebildeten zeigen:
