@@ -1,4 +1,3 @@
-
 #%% [0]
 
 # Imports
@@ -510,183 +509,6 @@ print(f"DataFrame for network analysis has been saved as {csv_filename_with_time
 
 # print(f"DataFrame for network analysis has been saved as {json_filename_with_timestamp} in the current working directory.")
 
-#%% [not tested]
-""" Add Measurements"""
-
-# number_of_edges(G)
-# density(G)
-# diameter(G)    # for this one please check whether this is slowing down the calculation
-# transitivity(G)   # Clustering Coefficient
-# average_clustering(G)
-# wiener_index(G)
-# average_degree_connectivity(G
-# degree_assortativity_coefficient(G)
-# degree_pearson_correlation_coefficient(G)
-# number_strongly_connected_components(G)
-# nx.average_shortest_path_length(G)
-
-""" Just use functions from networkX docu; think about meaning later !"""
-# function to save the plot with a unique name and timestamp
-
-def plot_and_analyse_nw(activity_df, key_name, corr_th=0.2, seed=12345678):
-    """ Function for network plot and analysis with plot saving feature - added new metrics 20SEP,2pm"""
-    
-    # Step 1: Drop columns with NaN values - all!
-    activity_df_non_nan = activity_df.dropna(how='any', axis=1)
-
-    # Check if there is enough data to compute the correlation matrix
-    if activity_df_non_nan.shape[1] < 2:  # Fewer than 2 neurons (columns) left after dropping NaN
-        print(f"Skipping this session: Not enough neurons after dropping NaN values.")
-        return None  # Skip this session
-
-    # Step 2: Compute correlation matrix
-    corr_mat = np.corrcoef(activity_df_non_nan.T)  # Transpose so that neurons are along columns
-
-    # Step 3: Zero diagonal elements to ignore self-connections
-    np.fill_diagonal(corr_mat, 0)
-
-    # Step 4: Zero out connections below the threshold
-    corr_mat[corr_mat < corr_th] = 0
-
-    # Step 5: Create a graph from the correlation matrix
-    G = nx.from_numpy_array(corr_mat)
-
-    # Create folder 'nw_plots' if it doesn't exist
-    plot_folder = os.path.join(os.getcwd(), 'nw_plots')
-    if not os.path.exists(plot_folder):
-        os.makedirs(plot_folder)
-
-    # Generate unique file name with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    plot_filename = f"{key_name}_{timestamp}.png"
-    plot_path = os.path.join(plot_folder, plot_filename)
-
-    # Step 6: Visualize the graph using a spring layout and save the plot
-    plt.figure(figsize=(10, 10))
-    nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
-    plt.title(f"Neuronal Network (Threshold {corr_th})")
-    plt.savefig(plot_path)
-    plt.close()  # Close the figure to avoid displaying it here
-
-    print(f"Plot saved to {plot_path}")
-
-    # Analyze graph metrics
-    num_edges = G.number_of_edges()
-    num_nodes = G.number_of_nodes()
-    
-    # Output graph metrics
-    print(f"Number of edges: {num_edges}")
-    print(f"Number of nodes: {num_nodes}")
-    
-    # Step 7: Compute mean degree of the whole network
-    degrees = [degree for node, degree in G.degree()]
-    mean_degree = np.mean(degrees)
-    print(f"Mean degree of the whole network: {mean_degree}")
-    
-    # Step 8: Calculate the number of sub-networks (connected components)
-    components = list(nx.connected_components(G))
-    num_sub_networks = len(components)
-    print(f"Number of sub-networks: {num_sub_networks}")
-    
-    assortativity = nx.degree_assortativity_coefficient(G)
-    print(f"Assortativity (degree correlation): {assortativity}")
-    
-    # Step 9: Graph Density
-    density = nx.density(G)
-    print(f"Graph density: {density}")
-    
-    # Step 10: Graph Diameter 
-    try:
-        if nx.is_connected(G):
-            diameter = nx.diameter(G)
-            print(f"Graph diameter: {diameter}")
-        else:
-            diameter = None
-            print(f"Graph is disconnected; diameter not defeined.")
-    except Exception as e:
-        diameter = None
-        print(f"Error calculating diameter: {e}")
-    
-    # Step 11: Transitivity 
-    transitivity = nx.transitivity(G)
-    print(f"Transitivity: {transitivity}")
-    
-    # Step 12: Average Clustering Coefficient
-    avg_clustering = nx.average_clustering(G)
-    print(f"Average clustering coefficient: {avg_clustering}")
-    
-    # Step 13: Wiener Index  #(?)
-    try:
-        if nx.is_connected(G):
-            wiener_index = nx.wiener_index(G)
-            print(f"Wiener Index: {wiener_index}")
-        else:
-            wiener_index = None
-            print(f"Graph is disconnected, the Wiener Index is not defined. ")
-    except Exception as e:
-        wiener_index = None
-        print(f"Error calculating Wiener Index: {e}")
-    
-    # Step 14: Average Degree Connectivity
-    avg_deg_connectivity = nx.average_degree_connectivity(G)
-    print(f"Average degree connectivity: {avg_deg_connectivity}")
-    
-    # Step 15: Degree Assortativity Coefficient
-    assortativity_coeff = nx.degree_assortativity_coefficient(G)
-    print(f"Degree assortativity coefficient: {assortativity_coeff}")
-    
-    # Step 16: Degree of the Pearson Correlation Coefficient
-    try:
-        pearson_corr = nx.degree_pearson_correlation_coefficient(G)
-        print(f"Degree Pearson correlation coefficient: {pearson_corr}")
-    except Exception as e:
-        pearson_corr = None
-        print(f"Error: calculating degree_pearson_correlation_coefficient: {e}")
-    
-    # Step 17: Average Shortest Path Length (Check for performance)
-    try:
-        if nx.is_connected(G):
-            avg_shortest_path_len = nx.average_shortest_path_length(G)
-            print(f"Average shortest path length: {avg_shortest_path_len}")
-        else:
-            avg_shortest_path_len = None
-            print(f"Graph is disconnected, average shortest path length is not defined.") 
-    except Exception as e:
-        avg_shortest_path_len = None
-        print(f"Error: Calculating avg_shortest_path_len: {e}")
-    
-    return {
-        'graph': G,
-        'num_edges': num_edges,
-        'num_nodes': num_nodes,
-        'mean_degree': mean_degree,
-        'assortativity': assortativity,
-        'density': density,
-        'diameter': diameter,
-        'transitivity': transitivity,
-        'avg_clustering': avg_clustering,
-        'wiener_index': wiener_index,
-        'avg_deg_connectivity': avg_deg_connectivity,
-        'assortativity_coeff': assortativity_coeff,
-        'pearson_corr': pearson_corr,
-        'avg_shortest_path_len': avg_shortest_path_len
-    }
-
-
-# Run the function on the first session and save the plot
-#plot_and_analyse_nw(df_first_session, first_session_key)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ############plots
@@ -699,6 +521,8 @@ def plot_and_analyse_nw(activity_df, key_name, corr_th=0.2, seed=12345678):
 
 
 # %%
+
+#TODO: Adjust plots to handle more metrices
 
 # data = {
 #     'key_name': ['1022_B_s1', '1022_B_s2', '1022_B_s3', '1022_B_s4', '1022_B_s5', '1022_B_s6', '1022_B_s7', '1022_B_s8', '1022_B_s9', '1022_B_s10',
