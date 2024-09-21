@@ -1,8 +1,16 @@
 Network dynamics during auditory fear conditioning after PTSD paradigm
-Network theory – Introduction
-Network theory offers the possibility to structure complex systems into a form, that makes it interpretable by so-called network metrics. These network metrics are the key concept (?) of network theory and they allow to quantify 
+1. Network Theory – Introduction
+
+
+//2 Versions of start
+//Start 1: with metrics; short about Graph, Edges, Nodes; explain metrics
+Network theory offers the possibility to structure complex systems into a form, that makes it interpretable by so-called network metrics. These network metrics are the key concept (?) of network theory, as they allow a mathematical interpretation in the form of so-called metrics. 
+//maybe 2 better, cause it explains nodes, and edges earlier
+
+//Start 2: with the basic construction of the network (Graph, Nodes, Edges)
 Network theory underlies the construction of networks to understand complex systems. It is widely used to model and analyze the interplay of various components within a system. 
-The main tool to model networks is a graph, built from nodes and edges. Nodes represent the basic elements of a network and serve as connection points. The edges in turn represent the connections between the individual nodes. 
+The main tool to model networks is a graph, built from nodes and edges. Nodes represent the basic elements of a network and serve as connection points. The edges in turn represent the connections between the individual nodes. The interpretation as a graph enables the application of a mathematical interpretation in the form of so-called metrics.
+
 In Neuroscience, 
 
 
