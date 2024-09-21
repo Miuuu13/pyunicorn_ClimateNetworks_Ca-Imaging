@@ -1,8 +1,15 @@
-Network dynamics during auditory fear conditionng after PTSD paradigm
-Network theory - Introduction
-…
+Network dynamics during auditory fear conditioning after PTSD paradigm
+Network theory – Introduction
+Network theory offers the possibility to structure complex systems into a form, that makes it interpretable by so-called network metrics. These network metrics are the key concept (?) of network theory and they allow to quantify 
+Network theory underlies the construction of networks to understand complex systems. It is widely used to model and analyze the interplay of various components within a system. 
+The main tool to model networks is a graph, built from nodes and edges. Nodes represent the basic elements of a network and serve as connection points. The edges in turn represent the connections between the individual nodes. 
+In Neuroscience, 
+
+
+Structural vs functional 
 
 Network analysis
+
 …
 Luminance Heatmap:
 …
@@ -14,6 +21,8 @@ Siehe plots in gitlab folder networkAnalysis und HeatmapPlot. Here our story:
 
 networkAnalysis:
 Density is relatively constant for both R+ and R-, with a slightly higher density for R+. That means R+ networks have more connections than R-, relative to the number of nodes. Overall, we need to be careful as our R- have much mode nodes, hence all analysis is preliminary until we are sure we see an effect of the resilience, and not only of network size.
+
+//check literature!!!
 Transitivity ("number of triangles", i.e. fraction of all possible triangles) decreases over time more R+ than for R-, same for avg_clustering. that means that the average number of triangles of a given node is also reduced, both are related.
 
 Luminance Heatmap:
@@ -22,3 +31,5 @@ Plotted in subfolder fig is the mean luminance, zscore normalized, over all anim
 Preliminary Conclusion: Along the subsequent days of extinction, the network of R+ animals loose complexity, while the R- animals stay at the same level of complexity.
 
 Als Beispiel-Netzwerke könntest du die hier abgebildeten zeigen:
+ 
+Die untere Reihe zeigt ein Decease in transitivity (Anzahl an Dreiecken)... kaum zu sehen, oder was meinst du?
