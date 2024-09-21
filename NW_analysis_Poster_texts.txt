@@ -4,24 +4,44 @@ Network dynamics during auditory fear conditioning after PTSD paradigm
 
 //2 Versions of start
 //Start 1: with metrics; short about Graph, Edges, Nodes; explain metrics
-Network theory offers the possibility to structure complex systems into a form, that makes it interpretable by so-called network metrics. These network metrics are the key concept (?) of network theory, as they allow a mathematical interpretation in the form of so-called metrics. 
+Network theory offers the possibility to structure complex systems to a form, 
+
+that makes it interpretable by so-called network metrics. These network metrics are the key concept (?) of network theory, as they allow a mathematical interpretation in the form of so-called metrics. 
 //maybe 2 better, cause it explains nodes, and edges earlier
 
 //Start 2: with the basic construction of the network (Graph, Nodes, Edges)
-Network theory underlies the construction of networks to understand complex systems. It is widely used to model and analyze the interplay of various components within a system. 
-The main tool to model networks is a graph, built from nodes and edges. Nodes represent the basic elements of a network and serve as connection points. The edges in turn represent the connections between the individual nodes. The interpretation as a graph enables the application of a mathematical interpretation in the form of so-called metrics.
+Network theory underlies the construction of networks to understand complex systems. It is widely used to model and analyze the interplay of various components within a system. The main tool to model networks is the theoretical construct of a graph, built from nodes and edges. Nodes represent the basic elements of a network and serve as connection points. The edges in turn represent the connections between the individual nodes. The interpretation as a graph enables the application of a mathematical interpretation in the form of so-called metrics. Prominent metrics are Density and Transitivity. The density is the ratio between the edges present in the network and the total number of possible edges. It gives information about how interconnected the whole network is. 
+// Structural vs functional 
+The connections between nodes can be formed based on structural connectivity, meaning the physical, anatomical connections between nodes (e.g. neurons), while functional connectivity represents the statistical dependencies or correlations in activity between nodes, regardless of whether there is a direct physical connection. As this analysis strives to understand the functional relationship, the connections in the shown networks rely on functional connectivity to quantify dependencies independent of anatomy. 
+In the context of analyzing the activity of individual neurons using Ca²⁺ imaging (calcium imaging), network density provides valuable insights into how individual neurons interact with each other.
+//formulas?
+Density=2E /N(N−1) ; E = Edges, N = Nodes
+A high-density network suggests that a large proportion of all possible connections between neurons are present, indicating that many neurons are functionally connected. In contrast, a low-density network means that only a small fraction of connections exist, implying that neurons are relatively independent or only slightly connected. In the performed analysis, density remains relatively constant for both R+ (resilient) and R- (non-resilient) networks, with R+ having a slightly higher density, indicating more connections relative to the number of nodes. However, since R- networks contain significantly more nodes, caution is needed in interpreting these findings to ensure that observed effects are due to resilience rather than simply differences in network size.
 
-In Neuroscience, 
+Transitivity is another metric that quantifies the probability that two neighbors of a particular node are also directly connected, i.e. that three nodes in the graph form a ‘triangle’. It measures the tendency of a network to form closely connected communities or groups.
+In the analysis shown, the transitivity (the proportion of all possible triangles) decreases more for R+ than for R- over time, which is also true for the average clustering coefficient. This suggests that the average number of triangles connected to a given node decreases over time, emphasising that both metrics are related and reflect a decrease in network cohesion, especially in the R+ group.
+
+----
+
+In Neuroscience, networks 
+especially in Calcium-Imaging
 
 
 Structural vs functional 
+Structural connectivity refers to the physical, actual anatomical connections between nodes (e.g. neurons or brain regions), while functional connectivity represents the statistical dependencies or correlations in activity between nodes, regardless of whether there is a direct physical connection. In the case of the network shown, we consider functional connectivity to quantify dependencies independent of anatomy.
 
-Network analysis
 
-…
-Luminance Heatmap:
-…
+2. Network analysis
+Density is relatively constant for both R+ and R-, with a slightly higher density for R+. That means R+ networks have more connections than R-, relative to the number of nodes. Overall, we need to be careful as our R- have much mode nodes, hence all analysis is preliminary until we are sure we see an effect of the resilience, and not only of network size.
 
+//check literature!!!
+Transitivity is another metric that quantifies the probability that two neighbors of a particular node are also directly connected, i.e. that three nodes in the graph form a ‘triangle’. It measures the tendency of a network to form closely connected communities or groups.
+Transitivity ("number of triangles", i.e. fraction of all possible triangles) decreases over time more R+ than for R-, same for avg_clustering. that means that the average number of triangles of a given node is also reduced, both are related.
+3. Luminance Heatmap:
+In the heatmap plot shown, the mean luminance, z-score normalised, was plotted for all animals, with R+ and R- groups shown separately. These data represent the average across all neurons and all CS+ tone presentations. The graph contains three vertical lines: The first marks the onset of the tone, the second marks the onset of the shock (for shock sessions only), and the third marks the end of the tone, with the time in seconds centred on the onset of the tone. 
+The data suggest that R animals show a much stronger response to the expected timing of the shock, particularly on days 1 and 2 (corresponding to the first and second lines on the y-axis). However, this response decreases over time, indicating a process of extinction.
+
+Preliminary conclusion: As extinction progresses on subsequent days, the complexity of the network decreases in the R+ animals, while the R- animals maintain a constant level of complexity.
 
 Mail from Janina
 
