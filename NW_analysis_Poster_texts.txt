@@ -61,3 +61,6 @@ Preliminary Conclusion: Along the subsequent days of extinction, the network of 
 Als Beispiel-Netzwerke könntest du die hier abgebildeten zeigen:
  
 Die untere Reihe zeigt ein Decease in transitivity (Anzahl an Dreiecken)... kaum zu sehen, oder was meinst du?
+
+
+Transitivity vs average clustering coeff
