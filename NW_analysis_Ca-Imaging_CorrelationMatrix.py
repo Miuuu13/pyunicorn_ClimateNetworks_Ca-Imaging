@@ -17,7 +17,7 @@ from datetime import datetime
 #cwd = current working directory
 #nw network
 
-#%% [1]
+ #%% [1]
 """ I.) Access data from Ca-Imaging, stored in .mat files """
 
 def walk_through_data_and_extract_data_from_matlab_file():
@@ -134,6 +134,12 @@ for key, session_data in split_sessions_dict.items():
     rows, cols = session_data.shape
     print(f"Session {key}: Rows/Frames: {rows}; Columns/Neurons: {cols} ")
 
+
+# Until this point, data from matlab file is extracted and saved into a dictionary.
+# Each animal id includes now 10 elements where the data from c_raw_all is 
+# splitted into the 10 experimental sessions
+
+
 #%% [5]
 
 """ III.) Run analysis for each key in split_sessions_dict """
@@ -154,9 +160,13 @@ for key, session_data in split_sessions_dict.items():
 """ ADD SAVING PLOT """
 
 
-# Updated function to save the plot with a unique name and timestamp
+""" Add new Measurements"""
+
+""" Just use functions from networkX docu; think about meaning later !"""
+# function to save the plot with a unique name and timestamp
+
 # def plot_and_analyse_nw(activity_df, key_name, corr_th=0.2, seed=12345678):
-#     """ Function for network plot and analysis with plot saving feature"""
+#     """ Function for network plot and analysis with plot saving feature - added new metrics and SVG saving 20SEP,2pm"""
     
 #     # Step 1: Drop columns with NaN values - all!
 #     activity_df_non_nan = activity_df.dropna(how='any', axis=1)
@@ -185,65 +195,41 @@ for key, session_data in split_sessions_dict.items():
 
 #     # Generate unique file name with timestamp
 #     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-#     plot_filename = f"{key_name}_{timestamp}.png"
-#     plot_path = os.path.join(plot_folder, plot_filename)
+#     plot_filename_png = f"{key_name}_{timestamp}.png"
+#     plot_filename_svg = f"{key_name}_{timestamp}.svg"
+    
+#     plot_path_png = os.path.join(plot_folder, plot_filename_png)
+#     plot_path_svg = os.path.join(plot_folder, plot_filename_svg)
 
 #     # Step 6: Visualize the graph using a spring layout and save the plot
 #     plt.figure(figsize=(10, 10))
 #     nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
 #     plt.title(f"Neuronal Network (Threshold {corr_th})")
-#     plt.savefig(plot_path)
+    
+#     # Save as PNG
+#     plt.savefig(plot_path_png)
+#     print(f"Plot saved to {plot_path_png}")
+    
+#     # Save as SVG
+#     plt.savefig(plot_path_svg, format='svg')
+#     print(f"Plot saved to {plot_path_svg}")
+    
 #     plt.close()  # Close the figure to avoid displaying it here
 
-#     print(f"Plot saved to {plot_path}")
-
-#     # Analyze graph metrics
+#     # Analyze graph metrics (The remaining analysis code stays unchanged)
 #     num_edges = G.number_of_edges()
 #     num_nodes = G.number_of_nodes()
     
 #     # Output graph metrics
 #     print(f"Number of edges: {num_edges}")
 #     print(f"Number of nodes: {num_nodes}")
-    
-#     # Step 7: Compute mean degree of the whole network
-#     degrees = [degree for node, degree in G.degree()]
-#     mean_degree = np.mean(degrees)
-#     print(f"Mean degree of the whole network: {mean_degree}")
-    
-#     # Step 8: Calculate the number of sub-networks (connected components)
-#     components = list(nx.connected_components(G))
-#     num_sub_networks = len(components)
-#     print(f"Number of sub-networks: {num_sub_networks}")
-    
-#     assortativity = nx.degree_assortativity_coefficient(G)
-#     print(f"Assortativity (degree correlation): {assortativity}")
 
-    
-#     return G, num_edges, num_nodes, mean_degree, assortativity
-
-# Run the function on the first session and save the plot
-#plot_and_analyse_nw(df_first_session, first_session_key)
+#%%
 
 
-""" Add new Measurements"""
-
-# number_of_edges(G)
-# density(G)
-# diameter(G)    # for this one please check whether this is slowing down the calculation
-# transitivity(G)   # Clustering Coefficient
-# average_clustering(G)
-# wiener_index(G)
-# average_degree_connectivity(G
-# degree_assortativity_coefficient(G)
-# degree_pearson_correlation_coefficient(G)
-# number_strongly_connected_components(G)
-# nx.average_shortest_path_length(G)
-
-""" Just use functions from networkX docu; think about meaning later !"""
-# function to save the plot with a unique name and timestamp
-
+"""adjust plot G - 23.09."""
 def plot_and_analyse_nw(activity_df, key_name, corr_th=0.2, seed=12345678):
-    """ Function for network plot and analysis with plot saving feature - added new metrics 20SEP,2pm"""
+    """ Function for network plot and analysis with adjusted visualization settings and SVG saving"""
     
     # Step 1: Drop columns with NaN values - all!
     activity_df_non_nan = activity_df.dropna(how='any', axis=1)
@@ -272,127 +258,47 @@ def plot_and_analyse_nw(activity_df, key_name, corr_th=0.2, seed=12345678):
 
     # Generate unique file name with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    plot_filename = f"{key_name}_{timestamp}.png"
-    plot_path = os.path.join(plot_folder, plot_filename)
+    plot_filename_png = f"{key_name}_{timestamp}.png"
+    plot_filename_svg = f"{key_name}_{timestamp}.svg"
+    
+    plot_path_png = os.path.join(plot_folder, plot_filename_png)
+    plot_path_svg = os.path.join(plot_folder, plot_filename_svg)
 
-    # Step 6: Visualize the graph using a spring layout and save the plot
+    # Step 6: Visualize the graph with modified visualization settings
     plt.figure(figsize=(10, 10))
-    nx.draw(G, pos=nx.spring_layout(G, seed=seed), node_size=10, width=0.3)
+    
+    # Use spring layout with a smaller `k` value to bring nodes closer
+    pos = nx.spring_layout(G, seed=seed, k=0.05, iterations=100)  # Adjust `k` for node closeness (smaller k brings nodes closer)
+    
+    # Draw the graph with adjusted parameters
+    nx.draw(G, pos=pos, node_size=20, width=0.6, edge_color='black', node_color='red')
+    
     plt.title(f"Neuronal Network (Threshold {corr_th})")
-    plt.savefig(plot_path)
-    plt.close()  # Close the figure to avoid displaying it here
-
-    print(f"Plot saved to {plot_path}")
+    
+    # Save as PNG
+    plt.savefig(plot_path_png)
+    print(f"Plot saved to {plot_path_png}")
+    
+    # Save as SVG (can be adjusted in PP)
+    plt.savefig(plot_path_svg, format='svg')
+    print(f"Plot saved to {plot_path_svg}")
+    
+    plt.close()  #close pic
 
     # Analyze graph metrics
     num_edges = G.number_of_edges()
     num_nodes = G.number_of_nodes()
     
-    # Output graph metrics
+    # Output the metrics
     print(f"Number of edges: {num_edges}")
     print(f"Number of nodes: {num_nodes}")
-    
-    # Step 7: Compute mean degree of the whole network
-    degrees = [degree for node, degree in G.degree()]
-    mean_degree = np.mean(degrees)
-    print(f"Mean degree of the whole network: {mean_degree}")
-    
-    # Step 8: Calculate the number of sub-networks (connected components)
-    components = list(nx.connected_components(G))
-    num_sub_networks = len(components)
-    print(f"Number of sub-networks: {num_sub_networks}")
-    
-    assortativity = nx.degree_assortativity_coefficient(G)
-    print(f"Assortativity (degree correlation): {assortativity}")
-    
-    # Step 9: Graph Density
-    density = nx.density(G)
-    print(f"Graph density: {density}")
-    
-    # Step 10: Graph Diameter 
-    try:
-        if nx.is_connected(G):
-            diameter = nx.diameter(G)
-            print(f"Graph diameter: {diameter}")
-        else:
-            diameter = None
-            print(f"Graph is disconnected; diameter not defeined.")
-    except Exception as e:
-        diameter = None
-        print(f"Error calculating diameter: {e}")
-    
-    # Step 11: Transitivity 
-    transitivity = nx.transitivity(G)
-    print(f"Transitivity: {transitivity}")
-    
-    # Step 12: Average Clustering Coefficient
-    avg_clustering = nx.average_clustering(G)
-    print(f"Average clustering coefficient: {avg_clustering}")
-    
-    # Step 13: Wiener Index  #(?)
-    try:
-        if nx.is_connected(G):
-            wiener_index = nx.wiener_index(G)
-            print(f"Wiener Index: {wiener_index}")
-        else:
-            wiener_index = None
-            print(f"Graph is disconnected, the Wiener Index is not defined. ")
-    except Exception as e:
-        wiener_index = None
-        print(f"Error calculating Wiener Index: {e}")
-    
-    # Step 14: Average Degree Connectivity
-    avg_deg_connectivity = nx.average_degree_connectivity(G)
-    print(f"Average degree connectivity: {avg_deg_connectivity}")
-    
-    # Step 15: Degree Assortativity Coefficient
-    assortativity_coeff = nx.degree_assortativity_coefficient(G)
-    print(f"Degree assortativity coefficient: {assortativity_coeff}")
-    
-    # Step 16: Degree of the Pearson Correlation Coefficient
-    try:
-        pearson_corr = nx.degree_pearson_correlation_coefficient(G)
-        print(f"Degree Pearson correlation coefficient: {pearson_corr}")
-    except Exception as e:
-        pearson_corr = None
-        print(f"Error: calculating degree_pearson_correlation_coefficient: {e}")
-    
-    # Step 17: Average Shortest Path Length (Check for performance)
-    try:
-        if nx.is_connected(G):
-            avg_shortest_path_len = nx.average_shortest_path_length(G)
-            print(f"Average shortest path length: {avg_shortest_path_len}")
-        else:
-            avg_shortest_path_len = None
-            print(f"Graph is disconnected, average shortest path length is not defined.") 
-    except Exception as e:
-        avg_shortest_path_len = None
-        print(f"Error: Calculating avg_shortest_path_len: {e}")
-    
-    return {
-        'graph': G,
-        'num_edges': num_edges,
-        'num_nodes': num_nodes,
-        'mean_degree': mean_degree,
-        'assortativity': assortativity,
-        'density': density,
-        'diameter': diameter,
-        'transitivity': transitivity,
-        'avg_clustering': avg_clustering,
-        'wiener_index': wiener_index,
-        'avg_deg_connectivity': avg_deg_connectivity,
-        'assortativity_coeff': assortativity_coeff,
-        'pearson_corr': pearson_corr,
-        'avg_shortest_path_len': avg_shortest_path_len
-    }
 
 
 # Run the function on the first session and save the plot
 #plot_and_analyse_nw(df_first_session, first_session_key)
+#%%
+plot_and_analyse_nw(split_sessions_dict)
 
-
-#TODO if metrics added: also add the metrics in the following loop -> changed loop; todo cleared
-#should now be able to handle various metrics 
 #%% [6]
 # Loop over each session in split_sessions_dict
 network_analysis_results = {}
@@ -498,46 +404,11 @@ network_analysis_df.to_csv(csv_filename_with_timestamp, index=True)
 
 print(f"DataFrame for network analysis has been saved as {csv_filename_with_timestamp} in the current working directory.")
 
-
-#%%
-
-""" Save df to json """
-#network_analysis_df.to_json(csv_filename_with_timestamp, index=True)
-# Save the df as a JSON file with a timestamp inside filename
-# json_filename_with_timestamp = f"network_analysis_results_{timestamp}.json"
-# network_analysis_df.to_json(json_filename_with_timestamp, orient='index')
-
-# print(f"DataFrame for network analysis has been saved as {json_filename_with_timestamp} in the current working directory.")
-
-
-
-############plots
-
 #%%
 
 """ Plotting for extinction days """
 
-
-
-
 # %%
-
-#TODO: Adjust plots to handle more metrices
-
-# data = {
-#     'key_name': ['1022_B_s1', '1022_B_s2', '1022_B_s3', '1022_B_s4', '1022_B_s5', '1022_B_s6', '1022_B_s7', '1022_B_s8', '1022_B_s9', '1022_B_s10',
-#                  '1002_B_s1', '1002_B_s2', '1002_B_s3', '1002_B_s4', '1002_B_s5', '1002_B_s6', '1002_B_s7', '1002_B_s8', '1002_B_s9', '1002_B_s10'],
-#     'num_edges': [179, 219, 62, 173, 220, 291, 208, 194, 90, 469, 22, 22, 8, 37, 49, 55, 18, 15, 32, 150],
-#     'num_nodes': [184, 183, 151, 190, 196, 185, 176, 155, 145, 225, 34, 31, 27, 46, 53, 58, 36, 28, 28, 84],
-#     'mean_degree': [1.94, 2.39, 0.82, 1.82, 2.24, 3.14, 2.36, 2.5, 1.24, 4.17, 1.29, 1.42, 0.59, 1.60, 1.85, 1.89, 1.0, 1.07, 2.29, 3.57],
-#     'assortativity': [0.29, 0.34, 0.59, 0.21, 0.10, 0.17, 0.15, 0.49, 0.18, 0.23, 0.13, 0.23, -0.03, 0.38, 0.25, 0.26, 0.13, 0.18, 0.33, 0.18],
-#     'animal_id': ['1022', '1022', '1022', '1022', '1022', '1022', '1022', '1022', '1022', '1022', '1002', '1002', '1002', '1002', '1002', '1002', '1002', '1002', '1002', '1002'],
-#     'R_plus': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-#     'R_minus': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#     'session': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-# }
-
-# df = pd.DataFrame(data)
 
 df= network_analysis_df
 
@@ -547,7 +418,6 @@ r_minus_df = df[df['R_minus'] == 1]
 # Filter 
 r_plus_sessions = r_plus_df[(r_plus_df['session'] >= 4) & (r_plus_df['session'] <= 7)]
 r_minus_sessions = r_minus_df[(r_minus_df['session'] >= 4) & (r_minus_df['session'] <= 7)]
-
 
 r_plus_sums = r_plus_sessions.groupby('session').sum()
 r_minus_sums = r_minus_sessions.groupby('session').sum()
@@ -563,7 +433,6 @@ plt.show()
 
 # %%
 """line plots for R_plus/_minus animals across sessions 4-7"""
-
 
 r_plus_animal_ids = r_plus_sessions['animal_id'].unique()
 #metrics from nw analysis in the df columns
@@ -597,6 +466,7 @@ for i, metric in enumerate(metrics):
     for animal_id in r_minus_animal_ids:
         animal_data = r_minus_sessions[r_minus_sessions['animal_id'] == animal_id]
         axes[i].plot(animal_data['session'], animal_data[metric], label=f"Animal {animal_id}")
+
     axes[i].set_title(f"R_minus: {metric} over Sessions")
     axes[i].set_xlabel('Session')
     axes[i].set_ylabel(metric.capitalize())
