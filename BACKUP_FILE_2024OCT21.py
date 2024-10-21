@@ -1359,3 +1359,163 @@ plot_first_10_neurons_separately_same_scale_zscore(split_sessions_dict_z, '1022_
 #%%
 """ rerun analysis for unnormalized and each 3 z score normalization "ways" to compare """
 
+###################CHETA SHEET1111111111111111111
+
+
+
+# Let's break down your request into clear functions, each targeting the specific task you've outlined. I'll guide you through implementing the required functions, step by step.
+# 1. Function to get the number of NaNs per neuron in each session
+
+# We need to loop through each session, count the number of NaN values per neuron, and store this information.
+
+# python
+
+# 1. i need a function to get the number of nan per neuron in each session 
+# 2.  i need a function to get the mean per neuron in each session 
+# 3.  i need a function to get the standard deviation per neuron in each session 
+
+# 4. and want this information saved in a df and a in a csv file wih the headers:  session_name, nr_of_NaNs, std, std_2x (calculate 2 times std), std_3x (calculate 3 times std),- as rows the neurons. 
+
+# 5. go through all sessions and neurons in split_session_dict and check if the neuron has no nan (function1.), then keep it, 1 nan, then replace nan with mean function (2.). remove neurons that have more than 1 nan per session. save as split_session_dict_no_nan
+
+# 6. I now ant a function that takes split_session_dict_no_nan and z score normalizes for all neurons per single session. so for each single session zscore normalize the values in this session for each enuron seperately. 
+
+import numpy as np
+
+def count_nans_per_neuron(split_sessions_dict: dict):
+    """Count the number of NaNs per neuron in each session."""
+    nan_count_dict = {}
+    
+    for key, session_data in split_sessions_dict.items():
+        nan_count_per_neuron = np.isnan(session_data).sum(axis=0)  # Count NaNs per column (neuron)
+        nan_count_dict[key] = nan_count_per_neuron
+        
+    return nan_count_dict
+
+# 2. Function to get the mean per neuron in each session
+
+
+def mean_per_neuron(split_sessions_dict: dict):
+    """Calculate the mean per neuron in each session, ignoring NaNs."""
+    mean_dict = {}
+    
+    for key, session_data in split_sessions_dict.items():
+        mean_per_neuron = np.nanmean(session_data, axis=0)  # Calculate mean, ignoring NaNs
+        mean_dict[key] = mean_per_neuron
+        
+    return mean_dict
+
+# 3. Function to get the standard deviation per neuron in each session
+
+# We’ll calculate the standard deviation per neuron, ignoring NaN values.
+
+# python
+
+def std_per_neuron(split_sessions_dict: dict):
+    """Calculate the standard deviation per neuron in each session, ignoring NaNs."""
+    std_dict = {}
+    
+    for key, session_data in split_sessions_dict.items():
+        std_per_neuron = np.nanstd(session_data, axis=0)  # Calculate std deviation, ignoring NaNs
+        std_dict[key] = std_per_neuron
+        
+    return std_dict
+
+# 4. Save all this information in a DataFrame and then export to CSV
+
+
+
+import pandas as pd
+
+def save_session_stats_to_csv(split_sessions_dict: dict, filename: str):
+    """Save session statistics (NaNs, mean, std, 2x std, 3x std) in a DataFrame and export to CSV."""
+    data_list = []
+    
+    nan_counts = count_nans_per_neuron(split_sessions_dict)
+    means = mean_per_neuron(split_sessions_dict)
+    stds = std_per_neuron(split_sessions_dict)
+    
+    for session, nan_count in nan_counts.items():
+        mean_vals = means[session]
+        std_vals = stds[session]
+        
+        for neuron_idx in range(len(nan_count)):
+            row = {
+                'session_name': session,
+                'nr_of_NaNs': nan_count[neuron_idx],
+                'mean': mean_vals[neuron_idx],
+                'std': std_vals[neuron_idx],
+                'std_2x': std_vals[neuron_idx] * 2,
+                'std_3x': std_vals[neuron_idx] * 3
+            }
+            data_list.append(row)
+    
+    df = pd.DataFrame(data_list)
+    df.to_csv(filename, index=False)
+    return df
+
+# 5. Processing neurons based on the number of NaNs
+
+
+
+def filter_and_replace_nans(split_sessions_dict: dict):
+    """Filter neurons with more than 1 NaN and replace NaNs with mean if there is only 1 NaN."""
+    split_sessions_dict_no_nan = {}
+    
+    for session, session_data in split_sessions_dict.items():
+        nan_count_per_neuron = np.isnan(session_data).sum(axis=0)
+        means = np.nanmean(session_data, axis=0)  # Mean of each neuron, ignoring NaNs
+        
+        # Filter and replace NaNs
+        cleaned_data = []
+        for neuron_idx in range(session_data.shape[1]):
+            if nan_count_per_neuron[neuron_idx] == 0:
+                cleaned_data.append(session_data[:, neuron_idx])  # No NaNs, keep as is
+            elif nan_count_per_neuron[neuron_idx] == 1:
+                # Replace the single NaN with the mean of that neuron
+                neuron_data = session_data[:, neuron_idx]
+                neuron_data[np.isnan(neuron_data)] = means[neuron_idx]
+                cleaned_data.append(neuron_data)
+        
+        split_sessions_dict_no_nan[session] = np.column_stack(cleaned_data)
+    
+    return split_sessions_dict_no_nan
+
+#6. Z-score normalization for each neuron in each session
+
+
+def z_score_normalization(split_sessions_dict_no_nan: dict):
+    """Z-score normalize each neuron in each session."""
+    z_score_normalized_dict = {}
+    
+    for session, session_data in split_sessions_dict_no_nan.items():
+        means = np.mean(session_data, axis=0)
+        stds = np.std(session_data, axis=0)
+        
+        z_scored_data = (session_data - means) / stds
+        z_score_normalized_dict[session] = z_scored_data
+    
+    return z_score_normalized_dict
+
+#
+
+
+
+def main():
+    # Data extraction
+    c_raw_all_dict = walk_through_data_and_extract_info_from_matlab_file()
+    
+    # Data preprocessing 
+    split_sessions_dict = split_c_raw_all_into_sessions_dict(c_raw_all_dict)
+    
+    # Filter neurons and handle NaNs
+    split_sessions_dict_no_nan = filter_and_replace_nans(split_sessions_dict)
+    
+    # Save session stats to CSV
+    save_session_stats_to_csv(split_sessions_dict, 'session_stats.csv')
+    
+    # Z-score normalization
+    z_scored_sessions = z_score_normalization(split_sessions_dict_no_nan)
+
+if __name__ == "__main__":
+    main()
