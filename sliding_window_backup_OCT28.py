@@ -250,3 +250,87 @@ def z_score_normalize_neuron_traces_per_session(split_sessions_dict_nan_free: di
         z_score_normalized_dict[session_key] = z_score_session_data
 
     return z_score_normalized_dict
+
+
+
+
+
+
+
+
+
+
+
+
+
+#########new:
+
+import numpy as np
+
+
+def calculate_initial_smoothed_points(neuron_trace, max_window):
+    """Helper function to calculate initial smoothed points with increasing window sizes."""
+    initial_points = []
+    for i in range(5, max_window + 1):  # Start from a window of 5 up to max_window
+        initial_points.append(np.mean(neuron_trace[:i]))
+    return initial_points
+
+def apply_sliding_window_smoothing(neuron_trace, window_size=10):
+    """Helper function to apply sliding window smoothing with specified window size."""
+    smoothed_trace = calculate_initial_smoothed_points(neuron_trace, window_size)
+    
+    # Main sliding window smoothing
+    for i in range(window_size, len(neuron_trace) - window_size + 1):
+        smoothed_trace.append(np.mean(neuron_trace[i - window_size + 1:i + 1]))
+    
+    # Final smoothing points for last frames
+    remaining_frames = len(neuron_trace) - len(smoothed_trace)
+    for i in range(remaining_frames):
+        smoothed_trace.append(np.mean(neuron_trace[-(5 + i):]))
+        
+    return smoothed_trace
+
+# Option 1: Non-Recursive Smoothing Function
+def smooth_sessions_non_recursive(split_sessions_dict_nan_free, window_size=10):
+    """Smooth each neuron trace in each session without recursion."""
+    split_sessions_dict_nan_free_smoothed = {}
+    
+    for session_key, session_data in split_sessions_dict_nan_free.items():
+        smoothed_data = []
+        
+        for neuron_trace in session_data.T:  # Transpose for easier access per neuron
+            smoothed_trace = apply_sliding_window_smoothing(neuron_trace, window_size)
+            smoothed_data.append(smoothed_trace)
+        
+        split_sessions_dict_nan_free_smoothed[session_key] = np.column_stack(smoothed_data)
+    
+    return split_sessions_dict_nan_free_smoothed
+
+# Option 2: Recursive Smoothing Function
+def smooth_sessions_recursive(split_sessions_dict_nan_free, window_size=10):
+    """Smooth each neuron trace in each session with recursion."""
+    
+    def recursive_smoothing(trace, start_index=0, smoothed_trace=[]):
+        if start_index < 5:
+            smoothed_trace.append(np.mean(trace[:start_index + 5]))
+        elif start_index >= len(trace) - 5:
+            remaining_frames = len(trace) - start_index
+            smoothed_trace.append(np.mean(trace[-(5 + remaining_frames - 1):]))
+            if start_index == len(trace) - 1:
+                return smoothed_trace
+        else:
+            smoothed_trace.append(np.mean(trace[start_index - 4:start_index + 6]))
+        
+        return recursive_smoothing(trace, start_index + 1, smoothed_trace)
+    
+    split_sessions_dict_nan_free_smoothed = {}
+    for session_key, session_data in split_sessions_dict_nan_free.items():
+        smoothed_data = []
+        
+        for neuron_trace in session_data.T:
+            smoothed_trace = recursive_smoothing(neuron_trace)
+            smoothed_data.append(smoothed_trace)
+        
+        split_sessions_dict_nan_free_smoothed[session_key] = np.column_stack(smoothed_data)
+    
+    return split_sessions_dict_nan_free_smoothed
