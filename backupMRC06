@@ -1,0 +1,756 @@
+# Note: Main script for extracting neuron traces and aligning them with renamed GPIO .csv files.
+# Updated: 2025-02-25
+
+#%% [0] ---------- Imports ----------
+print("[0] Imports...")
+
+# Built-in Python modules
+import os
+import json
+
+
+# Third-party libraries
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+import joblib #to save large dict
+
+# Custom modules
+# Part 1 of Pre-Processing: Data extraction and splitting:
+# from data_check import check_input_folder_structure  # NOTE: Currently inactive
+
+from data_extraction import (
+    find_and_load_csv_file,
+    extract_ca_imaging_matrix_and_session_starts_for_batches,
+)
+
+#from mann_whitney_u_testing import analyze_rp_rm_by_batches
+from nan_handling import check_extracted_nan_distribution, contains_nans, count_nans_per_neuron, remove_nan_values
+from nw_analysis_corr import process_nw_analysis
+from cs_tone_handling_ex_days import (
+    extract_sessions_subset, 
+    extract_tones_with_mask, 
+    extract_tones_with_mask_and_surrounding,
+    generate_heatmap_csm
+)
+from utils_io import (
+    display_dict_keys_and_content,
+    save_hdf5,
+    load_hdf5
+)
+from gpio_csv_handling import convert_sec_to_frames_dict, get_start_stop_for_sessions
+from neuron_trace_handling import check_extracted_trace_lengths, extract_all_traces_recursively
+
+from data_preprocessing import split_c_raw_all_into_sessions_dict
+
+from event_detection import create_events_dict, detect_events
+#------------------------------------------------------------------------
+# Part 2 of Pre-Processing: Cutting neuron traces:
+# from neuron_trace_handling import (
+#     cut_all_neuron_traces, 
+#     get_neuron_trace
+# )
+
+from plotting import (
+    plot_metrics,
+    plot_neuron_trace_dict1_dict2,
+    plot_neuron_trace_from_dict
+)
+
+
+#nw analysis
+
+from nw_statistics import (
+    #add_animal_id_and_resilience_columns_to_df,
+    #filter_df_resilient_susceptible, 
+    load_csv_data_as_df, 
+    #filter_df_by_batches,
+    filter_and_split_df_by_batch,
+    create_save_folder,
+    create_save_path,
+    get_stats_rp_vs_rm_comparison, 
+    get_stats_all_session_comparison,
+    merge_batch_df
+)
+
+#%% [1] ---------- Input Folder Structure Check (currently inactive) ----------
+print("[1] Input folder structure check (currently inactive)...")
+
+# Expected GPIO filename pattern for experimental sessions s1-s10 (animal id XXXX is a 3–4 digit number < 2000):
+#  s3  - "CFC XXXX GPIO" 
+#  s4  - "Ex Day 1 XXXX GPIO"
+#  s5  - "Ex Day 2 XXXX GPIO"
+#  s6  - "Ex Day 3 XXXX GPIO"
+#  s7  - "Ex Day 4 XXXX GPIO"
+#  s8  - "Ex Retrvl1 XXXX GPIO"
+#  s10 - "Ex Retrvl2 XXXX GPIO"
+#  s1  - "Hb C2 XXXX GPIO"
+#  s2  - "Hb C3 XXXX GPIO"
+#  s9 - "Renwl XXXX GPIO"
+
+# Uncomment to validate folder structure and filenames:
+# check_input_folder_structure(BASE_PATH)
+
+#%% [2] ---------- Define Base Path (cwd) ----------
+BASE_PATH = os.getcwd()
+CHECKPOINTS_PATH = os.path.join(BASE_PATH, "checkpoints")
+print(f"[2] Base path set to current working directory: {BASE_PATH}")
+
+#%% [3] ---------- Load Animal Conditioning Info as DataFrame ----------
+print("[3] Loading animal conditioning info from CSV file...")
+
+# Loads information about resilient (R+) and susceptible (R-); CS+/CS- tone information
+animal_info_df = find_and_load_csv_file()  # default: "Tone_conditioning_animal_list.csv"
+
+#%% [4] ---------- Display Animal Info DataFrame ----------
+print("[4] Animal conditioning information loaded:")
+animal_info_df
+
+#%% [5] ---------- DATA EXTRACTION ----------
+# NOTE: Ensure input batches are correctly placed in BASE_PATH
+# Part 1 of Pre-Processing: Data extraction and splitting:
+print("Part 1 of Pre-Processing: Data extraction and splitting...")
+print("[5] Extracting data from .mat files...")
+
+expected_batches = {'A', 'B', 'C', 'D', 'E', 'F'}  # Brain regions:
+# A, B: mPFC
+# C, D: NA D1
+# E, F: NA D2
+
+c_raw_all_dict = extract_ca_imaging_matrix_and_session_starts_for_batches(expected_batches)
+
+# Display extracted data dimensions (Frames × Neurons)
+print("Extracted c_raw_all_dict containing neuron trace data from .mat files:")
+
+#%%
+display_dict_keys_and_content(c_raw_all_dict)
+# Check keys (<animal_id>_<batch>)
+print("Extracted data (keys):", c_raw_all_dict.keys())
+
+#%% ckeck dict content - before splitting
+c_raw_all_dict
+
+
+#%%
+
+#TODO check shape of key #842_E in c_rall; not in sessions_dict; not in splitted dict!
+print("Shape and start frame list of critical key 842_E, where session 10 was missing in metrics csv (nw analysis): ")
+shape_of_842_E = c_raw_all_dict['842_E']['C_Raw_all'].shape
+print(shape_of_842_E)
+
+start_frames = c_raw_all_dict['842_E']['Start_Frame_Session']
+print(start_frames)
+
+print("Shape and start frame list of another key: 955_F: ")
+
+shape_of_955_F = c_raw_all_dict['955_F']['C_Raw_all'].shape
+print(shape_of_955_F)
+start_frames = c_raw_all_dict['955_F']['Start_Frame_Session']
+print(start_frames)
+
+
+
+#%% [6] ---------- SPLITTING DATA INTO SESSIONS ----------
+print("[6] Splitting data into experimental sessions...")
+sessions_dict_with_nans = split_c_raw_all_into_sessions_dict(c_raw_all_dict, animal_info_df)
+
+# sessions_dict_with_nans = split_c_raw_all_into_sessions_dict(c_raw_all_dict, animal_info_df, "input")
+
+# Check session info
+display_dict_keys_and_content(sessions_dict_with_nans)
+
+print("Data extraction from .mat and splitting into sessions completed.")
+
+# Check type and shape of example key
+example_key = '1022_B_s1_rm'
+print(f"Type of data for '{example_key}': {type(sessions_dict_with_nans[example_key])}")
+print(f"Shape of data for '{example_key}': {sessions_dict_with_nans[example_key].shape}")
+
+#%% ckeck dict content - after splitting
+sessions_dict_with_nans
+#%%
+########################### DATA EXTRACTION AND SPLITTING INTO SESSIONS COMPLETED ################
+print("Step [1-7] DATA EXTRACTION (from .mat) AND SPLITTING INTO SESSIONS COMPLETED")
+
+########################### CHECKPOINT sessions_dict_with_nans  ################
+#%% [7] ---------- SAVE CHECKPOINTS ----------
+# print("[7] Saving checkpoints...")
+
+# # Create checkpoints folder if it does not exist
+# checkpoint_folder = os.path.join(BASE_PATH, 'checkpoints')
+# os.makedirs(checkpoint_folder, exist_ok=True)
+
+# # Save checkpoint of sessions dict
+# #joblib.dump(c_raw_all_dict, os.path.join(checkpoint_folder, f"c_raw_all_checkpoint.pkl"))
+# joblib.dump(sessions_dict_with_nans, os.path.join(checkpoint_folder, f"sessions_dict_checkpoint.pkl"))
+
+# print("Checkpoint files saved successfully in checkpoints folder.")
+
+#%%  ---------- checking content of checkpoint failed----------
+# print("Loading and verifying checkpoint (failed)...")
+
+# # Load sessions dict checkpoint
+# loaded_sessions_dict = joblib.load(os.path.join(checkpoint_folder, f"sessions_dict_checkpoint.pkl"))
+
+# # Verify loaded dictionary matches original
+# original_keys = set(sessions_dict_with_nans.keys())
+# loaded_keys = set(loaded_sessions_dict.keys())
+
+# if original_keys == loaded_keys:
+#     print("SUCCESS: Loaded dictionary matches original keys.")
+# else:
+#     print("ERROR: Loaded dictionary keys do not match original.")
+
+# # Example detailed check for one key
+# example_key = next(iter(original_keys))
+# print(f"Original data shape: {sessions_dict_with_nans[example_key].shape}, Loaded data shape: {loaded_sessions_dict[example_key].shape}")
+
+#NOTE: kernel crash when running code cell [8]
+
+#NOTE: checkpoint size large, >28GB!
+
+########################### Part 2 of Pre-processing: CUTTING NEURON TRACES:  ################
+
+#%% [8]] ---------- Generate start stop dict for cutting ----------
+# NOTE New approach: use key to get the path to the csv
+#print("[8] extract experimental start and stop times from GPIO .csv files...")
+#start_stop_sec_dict = get_start_stop_for_sessions(BASE_PATH, sessions_dict_with_nans)
+
+
+# manually replaced null here (null for all)
+#     },
+#     "955_F_s2_rp": {
+#         "start_time": 0.0046,
+#         "end_time": 1111.4718,
+#         "duration": 1111.4672
+#     },
+
+##################### CHECKPOINT ##################################
+#%% [9] ---------- SAVE START_STOP_DICT CHECKPOINT AS JSON ----------
+# print("[9] Saving start_stop_dict as JSON checkpoint...")
+
+# import json
+# import os
+
+# # Create checkpoints folder if it does not exist
+# checkpoint_folder = os.path.join(BASE_PATH, 'checkpoints')
+# os.makedirs(checkpoint_folder, exist_ok=True)
+
+# # Save start_stop_dict checkpoint as JSON
+# with open(os.path.join(checkpoint_folder, "start_stop_sec_dict_checkpoint.json"), 'w') as f:
+#     json.dump(start_stop_sec_dict, f, indent=4)
+
+# print("start_stop_dict checkpoint saved successfully in checkpoints folder.")
+
+#%% [10] ---------- LOAD CHECKPOINTs for Part 2 ----------
+
+#NOTE run cell [0] imports and [2] base path and [3] tone conditioning list 
+
+# print("[10] Loading checkpoint of sessions_dict_with_nans for part 2 of pre-processing")
+# #TODO Try using loaded sessions dict
+
+# # checkpoints folder path
+
+# # Load the checkpoint
+# sessions_dict_with_nans = joblib.load(os.path.join(BASE_PATH, CHECKPOINTS_PATH, "sessions_dict_checkpoint.pkl"))
+
+# Load start_stop_dict from JSON checkpoint
+
+# with open(os.path.join(CHECKPOINTS_PATH, "start_stop_sec_dict_checkpoint.json"), 'r') as f:
+#     start_stop_sec_dict = json.load(f)
+
+# #%% print the dict content 
+# # Pretty print the results
+# print(" Content of start_stop_sec_dict...")
+# import pprint
+# pprint.pprint(start_stop_sec_dict)
+
+# #%% [11] ---------- Convert duration, start and stop from sec to frames ----------
+# print(" Convert sec dict start stop to frames dict...")
+# start_stop_frames_dict = convert_sec_to_frames_dict(start_stop_sec_dict)
+# print(start_stop_frames_dict)  
+
+# #%%
+# import json
+# import os
+
+# # Create checkpoints folder if it does not exist
+# checkpoint_folder = os.path.join(BASE_PATH, 'checkpoints')
+# os.makedirs(checkpoint_folder, exist_ok=True)
+
+# #%%
+# # Save start_stop_dict checkpoint as JSON
+# # Load start_stop_dict from JSON checkpoint
+
+# with open(os.path.join(CHECKPOINTS_PATH, "start_stop_sec_dict_checkpoint.json"), 'r') as f:
+#     start_stop_sec_dict = json.load(f)
+
+# print("start_stop_frames_dict checkpoint saved successfully in checkpoints folder.")
+
+
+#%%
+# Load start_stop_dict from JSON checkpoint
+
+with open(os.path.join(CHECKPOINTS_PATH, "start_stop_frames_dict_checkpoint.json"), 'r') as f:
+    start_stop_frames_dict = json.load(f)
+
+#%% #TODO remove this cell later
+# print("Plot any neuron trace...")
+
+# #check a trace
+# #example key
+# key = '1058_F_s5_rp'
+# neuron_idx = 5
+# plot_neuron_trace_from_dict(sessions_dict_with_nans, key, neuron_idx)
+
+# trace = get_neuron_trace(sessions_dict_with_nans, key, neuron_idx)
+# num_frames = len(trace)
+# duration_seconds = num_frames / 30  # Convert to seconds
+
+# print(f"Number of frames: {num_frames}")
+# print(f"Duration in seconds: {duration_seconds:.2f} sec")
+
+#%% [9] ---------- # Part 2 of Pre-Processing: Cutting neuron traces ----------
+print("Part 2 of Pre-Processing: Cutting neuron traces...")
+
+# Get all session keys as lst
+session_keys = list(sessions_dict_with_nans.keys())
+
+# Run the recursive extraction (cutting of traces)
+sessions_dict_with_nans_extracted = extract_all_traces_recursively(session_keys, sessions_dict_with_nans, start_stop_frames_dict)
+#%%
+# Check the output structure
+for key in sessions_dict_with_nans_extracted:
+    print(f"{key}: {sessions_dict_with_nans_extracted[key].shape}")  # Should match expected (frames, neurons)
+
+#%%
+
+#checkshape
+# Ensure the output structure is correct
+for key in sessions_dict_with_nans_extracted:
+    print(f"{key}: {sessions_dict_with_nans_extracted[key].shape}")  # Should match expected (frames, neurons)
+
+
+#%%
+# Example call for session '1022_B_s1_rm' and neuron index 5
+plot_neuron_trace_dict1_dict2(sessions_dict_with_nans, sessions_dict_with_nans_extracted, '1022_B_s1_rm', 5)
+#%%
+
+
+#%%
+
+# Count NaNs for each neuron and optionally plot neuron 5 from '1022_B_s1_rm'
+count_nans_per_neuron(sessions_dict_with_nans, sessions_dict_with_nans_extracted, neuron_idx=5, plot_key='1022_B_s1_rm')
+#%%
+#### 
+#TODO check length original vs extracted traces:
+# Run the check on all session traces
+check_extracted_trace_lengths(sessions_dict_with_nans, sessions_dict_with_nans_extracted)
+
+
+#%%
+
+check_extracted_nan_distribution(sessions_dict_with_nans, sessions_dict_with_nans_extracted)
+
+#%%
+
+
+"""OLD"""
+#%% [6]     ---------- NaN HANDLING ---------- 
+print("[6] Remove neurons that contain (nearly) only NaNs or replace 1 NaN per neuron by mean of neighbor(s)...")
+#NOTE Keep only Neuron traces with max. 1 NaN (replaced by mean of neighbors)
+sessions_dict =  remove_nan_values(sessions_dict_with_nans_extracted)
+
+#TODO check nan distribution after removing nans
+
+# #%%
+# sessions_dict # -> check if no NaNs:
+# #%%
+# # Reuse function to inspect if there are definitely no NaN values in sessions_dict anymore:
+# generate_nan_percentage_report(calculate_nan_percentages_from_sessions(sessions_dict))
+# print("Number of neurons in sessions_dict: ")
+# len(calculate_nan_percentages_from_sessions(sessions_dict)) #matches 18_614, value of 0-1% containing NaNs (Batch A-B)
+
+
+#%%
+check_extracted_nan_distribution(sessions_dict_with_nans_extracted, sessions_dict)
+
+#check if after cutting and removing nans like in DEC/JAN there are now definitely no nans
+#%%
+#%% check nan
+
+
+
+# Generate a list that contains for each neuron the percentage of NaN values
+#contains_nans(sessions_dict_cutted)
+
+if contains_nans(sessions_dict):
+    print("There are NaN values in the sessions.")
+else:
+    print("No NaN values found.")
+print(contains_nans(sessions_dict))
+""" nans removed - now generate additionally to sessions_dict the events_dict """
+
+#%%
+
+""" get tone dict for ext sessions from sessions_dict"""
+#%%
+#load sessions dict if needed 
+
+loaded_sessions_dict = load_hdf5(filename="sessions_dict.h5")
+
+#%%
+loaded_sessions_dict
+#%%
+
+# Define session suffixes to extract
+# ext days: (s4, s5, s6, s7)
+session_ids = ['s4', 's5', 's6', 's7']
+
+# Extract only the relevant sessions from the full sessions_dict
+ext_sessions_dict = extract_sessions_subset(loaded_sessions_dict, session_ids)
+
+# Apply tone extraction function to get CS- and CS+ traces
+csm_sessions_dict, csp_sessions_dict = extract_tones_with_mask(ext_sessions_dict)
+
+# Step 4: Print extracted sessions to verify
+print("✅ Extracted CS- Sessions:", list(csm_sessions_dict.keys()))
+print("✅ Extracted CS+ Sessions:", list(csp_sessions_dict.keys()))
+
+# Step 5: Check shapes of extracted traces
+for key, traces in csm_sessions_dict.items():
+    print(f"CS- {key}: {traces.shape}")  # Should match (CS- frames, neurons)
+
+for key, traces in csp_sessions_dict.items():
+    print(f"CS+ {key}: {traces.shape}")  # Should match (CS+ frames, neurons)
+
+
+
+#%%
+""" get dicts with surrounding of 10 s"""
+# Extract CS- and CS+ tones with surrounding frames
+csm_sessions_dict_with_surrounding, csp_sessions_dict_with_surrounding = extract_tones_with_mask_and_surrounding(ext_sessions_dict)
+
+# Check extracted data
+for key, traces in csm_sessions_dict_with_surrounding.items():
+    print(f"{key} (CS- with surrounding): {traces.shape}")
+
+for key, traces in csp_sessions_dict_with_surrounding.items():
+    print(f"{key} (CS+ with surrounding): {traces.shape}")
+
+
+#%%
+
+""" heatmaps"""
+generate_heatmap_csm(csm_sessions_dict_with_surrounding)
+
+
+
+#%%
+
+""" make events_dict """
+#%% [old 13]     ---------- GENERATE EVENT DICT ----------
+#from event_detection import create_events_dict
+
+# 1: Generate the events_dict
+print("[old 13] Generating events_dict...")
+events_dict = create_events_dict(sessions_dict)
+
+
+#%%
+#NOTE finished cutting + checked that there are no more NAN values (MRC01)
+"""heatmap - plotting """
+#%%
+
+sessions_dict
+
+#%%
+#code: https://gitlab.rlp.net/computationalresilience/ca-imaging/-/blob/main/fromJanina/HeatmapPlot/heatmaps_Janina.ipynb?ref_type=heads
+ #%% [0]
+
+""" Pre processing completed """
+print("now network construction")
+
+
+
+
+
+
+
+#%%
+
+
+#%%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#%%
+
+""" Load events_dict and sessions_dict """
+loaded_events_dict = load_hdf5() #automatically loads events_dict
+#%%
+loaded_sessions_dict = load_hdf5(filename="sessions_dict.h5")
+#%%
+import numpy as np
+
+def apply_zscore(trace):
+    """
+    Computes the Z-score normalization for a single neuron trace (1D array).
+    Ignores NaN values during computation.
+    
+    Parameters:
+    - trace: 1D NumPy array of a single neuron trace
+    
+    Returns:
+    - Z-scored trace (1D NumPy array)
+    """
+    mean = np.nanmean(trace)  # Ignore NaNs in mean calculation
+    std = np.nanstd(trace)  # Ignore NaNs in std calculation
+    if std == 0:  # Avoid division by zero
+        return trace  # Return original if std is zero (constant signal)?
+    return (trace - mean) / std
+
+def sessions_dict_zscored(sessions_dict):
+    """
+    Applies Z-score normalization to each neuron trace individually within each session.
+    
+    Parameters:
+    - sessions_dict: Dictionary where keys are session names, and values are 2D NumPy arrays 
+      with shape (frames, neurons).
+    
+    Returns:
+    - A new dictionary with the same keys and Z-scored traces as values.
+    """
+    zscored_dict = {}
+
+    for key, traces in sessions_dict.items():
+        # Apply Z-score transformation column-wise (per neuron)
+        zscored_traces = np.apply_along_axis(apply_zscore, axis=0, arr=traces)
+        zscored_dict[key] = zscored_traces
+
+    return zscored_dict
+#%%
+loaded_sessions_dict_zscored = sessions_dict_zscored(loaded_sessions_dict)
+
+#%%
+
+
+""" Try deconvolution"""
+
+import numpy as np
+from oasis.functions import deconvolve
+
+def deconvolve_sessions(sessions_dict):
+    """
+    Applies OASIS deconvolution to each neuron trace in all sessions.
+
+    Parameters:
+    - sessions_dict (dict): Dictionary where keys are session names,
+      values are 2D NumPy arrays (frames x neurons).
+
+    Returns:
+    - A new dictionary with the same keys but deconvolved spike estimates.
+    """
+    deconvolved_dict = {}
+
+    for key, traces in sessions_dict.items():
+        num_frames, num_neurons = traces.shape
+        deconvolved_traces = np.zeros((num_frames, num_neurons))  # Initialize correctly
+
+        for neuron_idx in range(num_neurons):
+            # Handle NaNs before deconvolution
+            trace = traces[:, neuron_idx]
+            trace = np.nan_to_num(trace, nan=0.0)  # Convert NaNs to zero to avoid issues
+
+            # Apply OASIS deconvolution (AR(1) model)
+            result = deconvolve(trace, penalty=1, g=(0.8,))
+
+            # Handle different output formats
+            if isinstance(result, tuple):
+                spikes = result[0]  # Always take the first output (spike estimates)
+            else:
+                spikes = result  # If only one value is returned
+
+            # Ensure spikes is a NumPy array
+            spikes = np.asarray(spikes)
+
+            # Resize if necessary
+            if spikes.shape[0] < num_frames:
+                spikes = np.pad(spikes, (0, num_frames - spikes.shape[0]), mode='constant')
+            elif spikes.shape[0] > num_frames:
+                spikes = spikes[:num_frames]  # Truncate if too long
+
+            # Assign to output array
+            deconvolved_traces[:, neuron_idx] = spikes
+
+        deconvolved_dict[key] = deconvolved_traces
+
+    return deconvolved_dict
+
+# 
+
+
+#%%
+sessions_dict_deconvolved = deconvolve_sessions(loaded_sessions_dict_zscored)
+
+
+
+#%%
+#TODO compare orfiginal vs loaded dict (later) 
+# Example usage
+# save_hdf5(events_dict)  # Replace `my_dict` with your actual dictionary
+
+
+# save_hdf5(sessions_dict, filename="sessions_dict.h5")
+
+#todo do now the network analysis with this new dict
+
+################### NW ANALYSIS ###########################
+############NW analysis start##########
+
+#%%
+batches_for_nw_analysis = ['A', 'B', 'C', 'D','E', 'F']
+
+#nw metrics generation for events dict
+
+#TODO run metrics generation for events dict
+""" urgent: check stats for events dict"""
+#process_nw_analysis(events_dict, batches_for_nw_analysis)
+#process_nw_analysis(loaded_sessions_dict_zscored, batches_for_nw_analysis)
+process_nw_analysis(sessions_dict_deconvolved, batches_for_nw_analysis)
+""" ""only run nw construction if needee""""""
+ """
+#%%
+
+save_hdf5(sessions_dict_deconvolved, filename="sessions_dict_deconvolved.h5")
+
+
+#%%
+# # Run the analysis for selected batches + stats
+
+#dont change code above
+""" Statistics and Metrics Analysis """
+# Restart analysisng new metrics data sets for Lir Club talk (MRC10)
+all_batches_metrics_path = "./nw_metrics_A_B_C_D_E_F_20250304_205621_EVENTS_DICT.csv"
+
+# Load dataset
+df = load_csv_data_as_df(all_batches_metrics_path)
+
+#%%
+df
+
+#%%
+metrics_lst = [
+    "num_edges", 
+    "num_nodes", 
+    "mean_degree", 
+    "density", 
+    "transitivity", 
+    "avg_clustering", 
+    "assortativity", 
+    "num_single_nodes", 
+    "avg_betweenness_centrality", 
+    #"num_sub_networks", #not useful - single nodes detected as sub nw
+    "largest_sub_network_size"
+]
+
+# Ensure have a 'batch' column (Extract first letter from 'graph' as batch)
+AB_rp, AB_rm = filter_and_split_df_by_batch(df, ['A', 'B'])
+CD_rp, CD_rm = filter_and_split_df_by_batch(df, ['C', 'D'])
+EF_rp, EF_rm = filter_and_split_df_by_batch(df, ['E', 'F'])
+all_rp, all_rm = filter_and_split_df_by_batch(df, ['A', 'B', 'C', 'D', 'E', 'F'])
+
+# Print dataset sizes as shape
+print(f"All RP: {all_rp.shape}, All RM: {all_rm.shape}")
+print(f"AB_rp: {AB_rp.shape}, AB_rm: {AB_rm.shape}")
+print(f"CD_rp: {CD_rp.shape}, CD_rm: {CD_rm.shape}")
+print(f"EF_rp: {EF_rp.shape}, EF_rm: {EF_rm.shape}")
+
+# Merge all batches
+AB_combined = merge_batch_df(AB_rp, AB_rm)
+CD_combined = merge_batch_df(CD_rp, CD_rm)
+EF_combined = merge_batch_df(EF_rp, EF_rm)
+all_combined = merge_batch_df(all_rp, all_rm)
+
+
+# num_edges	num_nodes	mean_degree	density	transitivity	avg_clustering	assortativity	num_single_nodes	avg_betweenness_centrality	num_sub_networks	largest_sub_network_size
+
+#%%
+""" testing - run with mann_whitney_u_testing.py scipt"""
+
+#%%
+
+# filepath = "nw_metrics_csv/nw_metrics_A_B_C_D_E_F_20250301_221806.csv"
+# df = pd.read_csv(filepath)
+df["session"] = df["graph"].str.extract(r"_s(\d+)_").astype(float)
+
+selected_metrics = ["assortativity", "transitivity", "avg_clustering"]
+selected_sessions = np.arange(1, 8)
+
+# Load and prepare dataset
+AB_combined["session"] = AB_combined["graph"].str.extract(r"_s(\d+)_").astype(float)
+# Run the plotting function
+resDict, axList = plot_metrics(AB_combined, selected_metrics, selected_sessions)
+
+# Check statistical differences
+#check_statistical_differences(resDict, selected_sessions, axList, selected_metrics) #not working?!
+
+
+
+#plot_metrics(AB_combined, selected_metrics, selected_sessions)
+#%%
+
+CD_combined["session"] = CD_combined["graph"].str.extract(r"_s(\d+)_").astype(float)
+resDict, axList = plot_metrics(CD_combined, selected_metrics, selected_sessions)
+
+
+#%%
+
+EF_combined["session"] = EF_combined["graph"].str.extract(r"_s(\d+)_").astype(float)
+resDict, axList = plot_metrics(EF_combined, selected_metrics, selected_sessions)
+#%%
+
+all_combined["session"] = all_combined["graph"].str.extract(r"_s(\d+)_").astype(float)
+resDict, axList = plot_metrics(all_combined, selected_metrics, selected_sessions)
+
+
+
+########so far not statistical significance markes in the plot * - MRC04 2025##########
+
+#%%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
